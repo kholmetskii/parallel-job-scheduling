@@ -35,6 +35,37 @@ The final counts are 3 accepted jobs, 1 rejected job, and 3 completions.
 All 6 servers are idle at the end. The simulator checks server and job
 conservation after every event.
 
+## Random workload
+
+Run the M4 example with 100 servers, 1,000 arrivals, and seed 42:
+
+```bash
+.venv/bin/python run_random.py
+```
+
+The generator uses exponential gaps with rate `0.8 * servers` to produce
+Poisson arrivals. Job sizes are sampled independently from an exponential
+distribution with mean 1. The first arrival follows a random gap from time zero.
+
+To choose the settings from Python:
+
+```python
+from simulation import Simulator
+from workload import WorkloadGenerator
+
+workload = WorkloadGenerator(arrival_rate=80, mean_job_size=1, seed=42)
+arrivals = workload.generate(num_jobs=1000)
+result = Simulator(servers=100).run(arrivals)
+```
+
+Create a fresh generator with the same seed and settings to reproduce a
+workload. Further calls on the same generator continue its random stream;
+each generated workload starts its arrival clock at zero. The generator
+uses its own random state, leaving Python's global random state untouched.
+
+The example prints arrival, acceptance, rejection, and completion counts.
+Warm-up and performance measurements will be added in M5.
+
 ## Classes
 
 | Class | Responsibility |
@@ -42,8 +73,10 @@ conservation after every event.
 | `Job` | Store arrival time and size; set allocation and completion time when started. |
 | `ServerPool` | Allocate and release capacity in a pool of identical servers. |
 | `Simulator` | Advance time, handle events, check conservation, and record results. |
+| `WorkloadGenerator` | Generate ordered arrival times and job sizes using a local random seed. |
 
-All three classes are in `simulation.py`. To run a simulation from Python:
+`Job`, `ServerPool`, and `Simulator` are in `simulation.py`.
+`WorkloadGenerator` is in `workload.py`. To run the fixed example from Python:
 
 ```python
 from simulation import EXAMPLE_ARRIVALS, Simulator
@@ -65,7 +98,9 @@ research model uses 100.
 
 Checks cover the expected trace, simultaneous events, partial allocation,
 blocking, empty input, invalid inputs, job allocations, pool capacity, and
-fresh state between runs. Random arrivals and sizes come in M4.
+fresh state between runs. Workload checks cover seeded reproducibility,
+ordered arrivals, valid sizes and settings, distribution sanity, and
+integration with the simulator.
 
 ## Project notes
 
