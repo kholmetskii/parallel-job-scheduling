@@ -35,9 +35,27 @@ The final counts are 3 accepted jobs, 1 rejected job, and 3 completions.
 All 6 servers are idle at the end. The simulator checks server and job
 conservation after every event.
 
-`simulate(arrivals, servers=100)` accepts ordered `(arrival_time, job_size)`
-pairs and returns the event log and counts. The example uses 6 servers to make
-each event easy to check; the initial research model uses 100.
+## Classes
+
+| Class | Responsibility |
+| --- | --- |
+| `Job` | Store arrival time and size; set allocation and completion time when started. |
+| `ServerPool` | Allocate and release capacity in a pool of identical servers. |
+| `Simulator` | Advance time, handle events, check conservation, and record results. |
+
+All three classes are in `simulation.py`. To run a simulation from Python:
+
+```python
+from simulation import EXAMPLE_ARRIVALS, Simulator
+
+simulator = Simulator(servers=6)
+result = simulator.run(EXAMPLE_ARRIVALS)
+```
+
+`run()` accepts ordered `(arrival_time, job_size)` pairs and returns the event
+log and counts. Each call starts with an empty system and fresh counters.
+The example uses 6 servers to make each event easy to check; the initial
+research model uses 100.
 
 ## Check
 
@@ -46,7 +64,8 @@ each event easy to check; the initial research model uses 100.
 ```
 
 Checks cover the expected trace, simultaneous events, partial allocation,
-blocking, empty input, and invalid inputs. Random arrivals and sizes come in M4.
+blocking, empty input, invalid inputs, job allocations, pool capacity, and
+fresh state between runs. Random arrivals and sizes come in M4.
 
 ## Project notes
 
