@@ -1,6 +1,7 @@
 import unittest
 
-from simulation import EXAMPLE_ARRIVALS, Job, ServerPool, Simulator
+from run_fixed import EXAMPLE_ARRIVALS
+from simulation import Job, ServerPool, Simulator
 
 
 class EventLoopTests(unittest.TestCase):

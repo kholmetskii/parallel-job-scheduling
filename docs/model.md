@@ -36,8 +36,13 @@ allocation to study blocking and execution time.
 
 - **Blocking probability:** rejected arrivals divided by total arrivals.
 - **Mean execution time:** average full execution time of accepted jobs.
-- Measure arrivals after an initial warm-up. Include accepted jobs that finish
-  after measured arrivals stop. Choose warm-up and run lengths in M5-M6.
+- Process a configurable number of initial arrivals as warm-up, counting both
+  accepted and rejected arrivals toward the cutoff. Keep running jobs and
+  their allocations when warm-up ends.
+- Measure subsequent arrivals. Exclude warm-up jobs even if they finish later.
+  Include the full execution time of measured accepted jobs that finish after
+  the final arrival. Choose experimental warm-up and run lengths in M6.
+- If there are no measured arrivals, blocking probability is unavailable.
 - If no measured job is accepted, mean execution time is unavailable.
 
 ## Reference

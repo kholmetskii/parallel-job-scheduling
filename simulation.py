@@ -1,4 +1,4 @@
-"""A greedy event loop built from Job, ServerPool, and Simulator objects."""
+"""A greedy event loop with jobs, a server pool, and performance statistics."""
 
 import heapq
 import math
@@ -6,7 +6,6 @@ from typing import Iterable
 
 
 SPEEDUPS = (1.0, 1.8, 2.5, 3.0, 3.4)
-EXAMPLE_ARRIVALS = [(0.0, 3.4), (0.2, 1.0), (0.4, 1.0), (1.0, 3.4)]
 
 
 class Job:
@@ -69,10 +68,48 @@ class ServerPool:
         self.idle_servers += count
 
 
+class Statistics:
+    """Measure jobs whose arrival numbers follow the warm-up cutoff."""
+
+    def __init__(self, warmup_arrivals: int = 0) -> None:
+        if type(warmup_arrivals) is not int or warmup_arrivals < 0:
+            raise ValueError("warmup_arrivals must be a nonnegative integer")
+        self.warmup_arrivals = warmup_arrivals
+        self.arrivals = 0
+        self.accepted = 0
+        self.rejected = 0
+        self.total_execution_time = 0.0
+
+    def record_arrival(self, job: Job) -> None:
+        """Record a job after the simulator has decided whether to start it."""
+        if job.job_id <= self.warmup_arrivals:
+            return
+        if job.completion_time is None:
+            self.rejected += 1
+        else:
+            self.accepted += 1
+            # The full duration is already known, even if completion is later.
+            self.total_execution_time += job.completion_time - job.arrival_time
+        self.arrivals += 1
+
+    @property
+    def blocking_probability(self) -> float | None:
+        if self.arrivals == 0:
+            return None
+        return self.rejected / self.arrivals
+
+    @property
+    def mean_execution_time(self) -> float | None:
+        if self.accepted == 0:
+            return None
+        return self.total_execution_time / self.accepted
+
+
 class Simulator:
     """Advance time, process jobs, and record a greedy simulation."""
 
     pool: ServerPool
+    statistics: Statistics
     current_time: float
     arrivals_seen: int
     accepted: int
@@ -85,7 +122,8 @@ class Simulator:
         self.servers = servers
         self._reset()
 
-    def _reset(self) -> None:
+    def _reset(self, warmup_arrivals: int = 0) -> None:
+        self.statistics = Statistics(warmup_arrivals)
         self.pool = ServerPool(self.servers)
         self.current_time = 0.0
         self.arrivals_seen = 0
@@ -132,6 +170,7 @@ class Simulator:
         self.arrivals_seen += 1
         if self.pool.idle_servers == 0:
             self.rejected += 1
+            self.statistics.record_arrival(job)
             self.record("rejected", job)
             return
 
@@ -141,15 +180,22 @@ class Simulator:
         self.pool.allocate(allocation)
         self.accepted += 1
         heapq.heappush(self.completions, (job.completion_time, job.job_id, job))
+        self.statistics.record_arrival(job)
         self.record("accepted", job)
 
-    def run(self, arrivals: Iterable[tuple[float, float]]) -> dict:
+    def run(
+        self,
+        arrivals: Iterable[tuple[float, float]],
+        warmup_arrivals: int = 0,
+    ) -> dict:
         """Run ordered (arrival time, size) pairs, starting from an empty system.
 
         Completions at an arrival's timestamp are processed first. After the
         final arrival, finish all remaining jobs. Each call starts a fresh run.
+        Process the first warmup_arrivals normally but exclude them from
+        statistics. All event-log entries and top-level counts cover the run.
         """
-        self._reset()
+        self._reset(warmup_arrivals)
         for job_id, (arrival_time, job_size) in enumerate(arrivals, start=1):
             job = Job(job_id=job_id, arrival_time=arrival_time, size=job_size)
             self.handle_arrival(job)
@@ -164,24 +210,13 @@ class Simulator:
             "rejected": self.rejected,
             "completed": self.completed,
             "final_idle_servers": self.pool.idle_servers,
+            "statistics": {
+                "warmup_arrivals": self.statistics.warmup_arrivals,
+                "arrivals": self.statistics.arrivals,
+                "accepted": self.statistics.accepted,
+                "rejected": self.statistics.rejected,
+                "total_execution_time": self.statistics.total_execution_time,
+                "blocking_probability": self.statistics.blocking_probability,
+                "mean_execution_time": self.statistics.mean_execution_time,
+            },
         }
-
-
-def main():
-    result = Simulator(servers=6).run(EXAMPLE_ARRIVALS)
-    print("Fixed-input example: 6 servers, at most 5 per job")
-    print(f"{'Time':>4}  {'Event':<30}  Idle servers")
-    for event in result["events"]:
-        description = f"Job {event['job_id']} {event['event']}"
-        if event["event"] == "accepted":
-            allocation = event["allocated_servers"]
-            unit = "server" if allocation == 1 else "servers"
-            description += f" ({allocation} {unit})"
-        print(f"{event['time']:4.1f}  {description:<30}  {event['idle_servers']:>12}")
-    print(f"Arrivals: {result['arrivals']}; accepted: {result['accepted']}; "
-          f"rejected: {result['rejected']}; completed: {result['completed']}")
-    print(f"Final idle servers: {result['final_idle_servers']}")
-
-
-if __name__ == "__main__":
-    main()
