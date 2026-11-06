@@ -1,7 +1,7 @@
 # Model
 
-We simulate jobs sharing a pool of servers. The first version uses greedy
-allocation to study blocking and execution time.
+We simulate jobs sharing a pool of servers. We compare greedy allocation
+with the paper's randomized rule to study blocking and execution time.
 
 ## Servers
 
@@ -23,6 +23,16 @@ allocation to study blocking and execution time.
 - When a job arrives, give it `min(5, idle servers)` servers.
 - If no server is idle, reject the job. There is no waiting queue or retry.
 - An accepted job starts immediately and keeps its allocation until completion.
+
+## Randomized allocation
+
+- For the current rate `0.8 * n`, mean size 1, and speedups below, target 3
+  servers with probability `0.625` and 4 with probability `0.375`.
+- Allocate `min(target, idle servers)`. Reject only when none is idle.
+- Use a separate seeded random generator for allocation decisions. Sample a
+  target for every arrival, including warm-up and rejected arrivals.
+- Keep the allocation fixed until completion. Recalculate the probabilities
+  if the normalized load or speedup function changes.
 
 ## Execution and completion
 

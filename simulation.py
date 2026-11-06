@@ -1,8 +1,10 @@
-"""A greedy event loop with jobs, a server pool, and performance statistics."""
+"""An event loop with jobs, allocation policies, and performance statistics."""
 
 import heapq
 import math
 from typing import Iterable
+
+from policies import GreedyPolicy, RandomizedPolicy
 
 
 SPEEDUPS = (1.0, 1.8, 2.5, 3.0, 3.4)
@@ -106,7 +108,7 @@ class Statistics:
 
 
 class Simulator:
-    """Advance time, process jobs, and record a greedy simulation."""
+    """Advance time, process jobs, and record a simulation under one policy."""
 
     pool: ServerPool
     statistics: Statistics
@@ -118,8 +120,13 @@ class Simulator:
     completions: list[tuple[float, int, Job]]
     events: list[dict]
 
-    def __init__(self, servers: int = 100):
+    def __init__(
+        self,
+        servers: int = 100,
+        policy: GreedyPolicy | RandomizedPolicy | None = None,
+    ):
         self.servers = servers
+        self.policy = GreedyPolicy(max_servers=len(SPEEDUPS)) if policy is None else policy
         self._reset()
 
     def _reset(self, warmup_arrivals: int = 0) -> None:
@@ -133,6 +140,7 @@ class Simulator:
         # The unique job ID breaks time ties without comparing Job objects.
         self.completions = []
         self.events = []
+        self.policy.reset()
 
     def record(self, event: str, job: Job) -> None:
         active_allocation = sum(job.allocated_servers for _, _, job in self.completions)
@@ -167,14 +175,18 @@ class Simulator:
             self.complete_next()
 
         self.current_time = job.arrival_time
+        allocation = self.policy.choose_allocation(self.pool.idle_servers)
+        if (type(allocation) is not int
+                or not 0 <= allocation <= min(len(SPEEDUPS), self.pool.idle_servers)
+                or (allocation == 0 and self.pool.idle_servers > 0)):
+            raise ValueError("Policy must allocate available capacity within the model's limits")
         self.arrivals_seen += 1
-        if self.pool.idle_servers == 0:
+        if allocation == 0:
             self.rejected += 1
             self.statistics.record_arrival(job)
             self.record("rejected", job)
             return
 
-        allocation = min(len(SPEEDUPS), self.pool.idle_servers)
         job.start(allocation)
         assert job.completion_time is not None
         self.pool.allocate(allocation)
@@ -194,6 +206,7 @@ class Simulator:
         final arrival, finish all remaining jobs. Each call starts a fresh run.
         Process the first warmup_arrivals normally but exclude them from
         statistics. All event-log entries and top-level counts cover the run.
+        Reset the policy's random stream along with the simulator state.
         """
         self._reset(warmup_arrivals)
         for job_id, (arrival_time, job_size) in enumerate(arrivals, start=1):
