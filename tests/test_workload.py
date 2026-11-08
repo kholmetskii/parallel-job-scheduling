@@ -2,8 +2,8 @@ import math
 import random
 import unittest
 
-from simulation import Simulator
-from workload import WorkloadGenerator
+from scheduling.simulation import Simulator
+from scheduling.workload import WorkloadGenerator
 
 
 class WorkloadGeneratorTests(unittest.TestCase):

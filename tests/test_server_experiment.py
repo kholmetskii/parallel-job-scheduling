@@ -2,13 +2,14 @@ import math
 import unittest
 from unittest.mock import patch
 
-from run_comparison import run_policy
-from run_server_experiment import run_trial, summarize_server_runs
-from workload import WorkloadGenerator
+from scheduling.analysis import summarize_server_runs
+from scheduling.experiments import run_policy, run_trial
+from scheduling.workload import WorkloadGenerator
 
 
 def observation(servers, seed, blocking, execution):
-    return {"servers": servers, "seed": seed, "warmup_arrivals": 10,
+    return {"servers": servers, "arrival_rate": 0.8 * servers,
+            "seed": seed, "warmup_arrivals": 10,
             "measured_arrivals": 100, "blocking_probability": blocking,
             "mean_execution_time": execution}
 
@@ -16,11 +17,11 @@ def observation(servers, seed, blocking, execution):
 class ServerExperimentTests(unittest.TestCase):
     def test_capacity_and_arrival_rate_change_together(self):
         jobs = [(0, 1), (0, 1), (0, 1)]
-        with patch("run_server_experiment.WorkloadGenerator") as generator:
+        with patch("scheduling.experiments.WorkloadGenerator") as generator:
             generator.return_value.generate.return_value = jobs
-            small = run_trial(1, 0, 0, 3)
+            small = run_trial(0, 0, 3, servers=1, policy="randomized")
             generator.assert_called_with(0.8, 1.0, seed=0)
-            large = run_trial(4, 0, 0, 3)
+            large = run_trial(0, 0, 3, servers=4, policy="randomized")
             generator.assert_called_with(3.2, 1.0, seed=0)
         self.assertEqual(small["measured_accepted"], 1)
         self.assertEqual(large["measured_accepted"], 2)
@@ -34,10 +35,10 @@ class ServerExperimentTests(unittest.TestCase):
     def test_100_server_trial_reproduces_existing_comparison(self):
         arrivals = WorkloadGenerator(80, seed=7).generate(110)
         previous = run_policy(arrivals, 7, "randomized", 10, policy_seed=10007)
-        actual = run_trial(100, 7, 10, 100)
+        actual = run_trial(7, 10, 100, servers=100, policy="randomized")
         for key, value in previous.items():
             self.assertEqual(actual[key], value, key)
-        self.assertEqual(actual, run_trial(100, 7, 10, 100))
+        self.assertEqual(actual, run_trial(7, 10, 100, servers=100, policy="randomized"))
 
     def test_summaries_keep_server_counts_separate(self):
         rows = [observation(50, 1, 0.4, 3), observation(100, 0, 0.1, 2),
@@ -68,7 +69,7 @@ class ServerExperimentTests(unittest.TestCase):
             arguments = {"servers": 100, "seed": 0, "warmup_arrivals": 0, "measured_arrivals": 10}
             arguments.update(setting)
             with self.subTest(setting=setting), self.assertRaises(ValueError):
-                run_trial(**arguments)
+                run_trial(**arguments, policy="randomized")
 
 
 if __name__ == "__main__":

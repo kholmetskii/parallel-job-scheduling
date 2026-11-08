@@ -4,10 +4,12 @@ import heapq
 import math
 from typing import Iterable
 
-from policies import GreedyPolicy, RandomizedPolicy
+from scheduling.config import ModelSettings
+from scheduling.policies import GreedyPolicy, RandomizedPolicy
 
 
-SPEEDUPS = (1.0, 1.8, 2.5, 3.0, 3.4)
+# Default curve for direct simulator construction.
+SPEEDUPS = ModelSettings().speedups
 
 
 class Job:
@@ -26,13 +28,20 @@ class Job:
         self.allocated_servers = 0
         self.completion_time: float | None = None
 
-    def start(self, allocated_servers: int) -> None:
-        """Set the allocation once and store the resulting completion time."""
+    def start(self, allocated_servers: int, speedup: float) -> None:
+        """Set the allocation once, using its supplied execution speedup."""
         if self.completion_time is not None:
             raise RuntimeError("The job has already started")
-        if type(allocated_servers) is not int or not 1 <= allocated_servers <= len(SPEEDUPS):
-            raise ValueError("Allocation must be between 1 and the number of speedups")
-        duration = self.size / SPEEDUPS[allocated_servers - 1]
+        if type(allocated_servers) is not int or allocated_servers < 1:
+            raise ValueError("Allocation must be a positive integer")
+        try:
+            valid_speedup = (type(speedup) in (int, float)
+                             and math.isfinite(speedup) and speedup > 0)
+        except OverflowError:
+            valid_speedup = False
+        if not valid_speedup:
+            raise ValueError("Speedup must be finite and positive")
+        duration = self.size / speedup
         completion_time = self.arrival_time + duration
         if not math.isfinite(completion_time):
             raise ValueError("Completion time must be finite")
@@ -124,9 +133,14 @@ class Simulator:
         self,
         servers: int = 100,
         policy: GreedyPolicy | RandomizedPolicy | None = None,
+        speedups: tuple[float, ...] | list[float] = SPEEDUPS,
     ):
-        self.servers = servers
-        self.policy = GreedyPolicy(max_servers=len(SPEEDUPS)) if policy is None else policy
+        model = ModelSettings(servers=servers, speedups=speedups)
+        self.servers = model.servers
+        self.speedups = model.speedups
+        self.max_servers_per_job = len(self.speedups)
+        self.policy = (GreedyPolicy(max_servers=self.max_servers_per_job)
+                       if policy is None else policy)
         self._reset()
 
     def _reset(self, warmup_arrivals: int = 0) -> None:
@@ -177,7 +191,7 @@ class Simulator:
         self.current_time = job.arrival_time
         allocation = self.policy.choose_allocation(self.pool.idle_servers)
         if (type(allocation) is not int
-                or not 0 <= allocation <= min(len(SPEEDUPS), self.pool.idle_servers)
+                or not 0 <= allocation <= min(self.max_servers_per_job, self.pool.idle_servers)
                 or (allocation == 0 and self.pool.idle_servers > 0)):
             raise ValueError("Policy must allocate available capacity within the model's limits")
         self.arrivals_seen += 1
@@ -187,7 +201,7 @@ class Simulator:
             self.record("rejected", job)
             return
 
-        job.start(allocation)
+        job.start(allocation, speedup=self.speedups[allocation - 1])
         assert job.completion_time is not None
         self.pool.allocate(allocation)
         self.accepted += 1

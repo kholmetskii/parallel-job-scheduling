@@ -1,0 +1,279 @@
+% Parallel Job Scheduling -- Third Year Project Specification
+% Author: Kaya Kaya, Student ID 5587546
+%
+% LAYOUT ATTRIBUTION
+% Adapted from University of Warwick Report Template by Chris Quinn (2020).
+% Source: https://www.overleaf.com/latex/templates/university-of-warwick-report-template/kfpfvcbkdcdk
+% Template licence: Creative Commons Attribution 4.0 International.
+% Licence: https://creativecommons.org/licenses/by/4.0/
+% Changes: standalone specification with a separate crest image; replacement content;
+% removal of dissertation front matter; addition of a multipage timetable.
+% warwick-crest.pdf contains the unchanged image from the template cover.
+% University identity and trademark rights remain with their respective owners.
+%
+% COMPILATION
+% Compile this file with pdfLaTeX, XeLaTeX, LuaLaTeX, or Tectonic.
+% Compile twice to resolve bibliography citations and timetable widths.
+% Upload assets/warwick-crest.pdf with this source, preserving its subdirectory.
+% No separate class or bibliography file is required.
+
+\documentclass[10pt,a4paper,oneside]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[british]{babel}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{setspace}
+\usepackage{fancyhdr}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{microtype}
+\usepackage[hyphens]{url}
+\usepackage[hidelinks,breaklinks]{hyperref}
+
+\graphicspath{{assets/}{docs/reports/assets/}}
+
+\hypersetup{
+  pdftitle={Parallel Job Scheduling: Applications to Order Routing},
+  pdfauthor={Kaya Kaya},
+  pdfsubject={Third Year Project Specification}
+}
+\fancyhf{}
+\pagestyle{fancy}
+\renewcommand{\headrulewidth}{0.2pt}
+\fancyfoot[C]{\thepage}
+\setlength{\headheight}{14pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.5em}
+\setlength{\emergencystretch}{2em}
+\urlstyle{same}
+
+\begin{document}
+
+% Cover adapted from the template's centred crest and title arrangement.
+\begin{titlepage}
+  \centering
+  \vspace*{0pt}
+  \includegraphics[width=0.35\textwidth]{warwick-crest.pdf}\par
+  \vspace{1.3cm}
+  {\LARGE\bfseries Parallel Job Scheduling\par}
+  \vspace{0.3cm}
+  {\large Applications to Order Routing\par}
+  \vspace{0.9cm}
+  {\large Project Specification\par}
+  \vspace{1.5cm}
+  {\large\bfseries Kaya Kaya\par}
+  \vspace{0.3cm}
+  Student ID 5587546\par
+  Discrete Mathematics\par
+  \vfill
+  {\large Supervisor: Dr Arpan Mukhopadhyay\par}
+  \vspace{0.4cm}
+  {\large\bfseries Department of Computer Science\par}
+  \vspace{0.3cm}
+  {\large University of Warwick\par}
+\end{titlepage}
+
+\setcounter{page}{1}
+
+\section{Title}
+
+\textbf{Parallel Job Scheduling}
+
+The project uses the title offered by my supervisor. \emph{Applications to Order Routing} describes the proposed financial focus. The detailed model and scope remain subject to discussion.
+
+\section{Problem Statement / Gap in Existing Provision}
+
+Parallel job scheduling assigns arriving work to processors using information about their queues. In electronic markets, a related decision is where to place an order when several trading venues offer the same price. An order may execute quickly, wait, or remain unfilled at the deadline. The project will investigate how scheduling ideas can inform this routing decision.
+
+Azar et al. show that sampling two destinations can greatly improve load balance in a classical allocation model \cite{azar1999}. Financial routing introduces different objectives and mechanisms: the shortest queue may belong to a venue with little trading activity, while cancellations can advance an order's position. Cont and Kukanov study placement using queue sizes, order flows, fees and execution risk \cite{cont2017}. Huang et al. provide a framework for modelling order books as Markov queueing systems \cite{huang2015}.
+
+This project's contribution will be a reproducible comparison of routing policies under explicit financial assumptions. For a single routed order, the two-choice rule tests the trade-off between execution probability and the number of queues observed. Long-run congestion feedback is outside this model, so classical load-balancing guarantees will not be assumed to apply.
+
+The main research question is: \emph{how do differences in trading activity and cancellation rates affect the execution probability of randomized queue-based order-routing policies?} A secondary question asks whether using estimated execution time improves on choosing by queue length alone. The mathematical challenge is to analyse a stochastic execution process and explain the conditions behind observed policy differences.
+
+Building on my previous experience with time-series analysis, I would like to explore whether forecasts of trading activity can improve order-routing decisions. This could include comparing statistical methods with a small machine-learning model. The project will develop skills in probabilistic modelling, statistical evaluation and algorithm analysis relevant to quantitative research.
+
+\section{Objectives}
+
+The core objectives are:
+\begin{enumerate}
+\item Review the scheduling and market-microstructure literature, record assumptions, and define the model and evaluation protocol. Target completion of the initial review and scope decision by 26 October.
+\item Derive expected execution times and deadline execution probabilities. Investigate conditions under which shortest-queue routing is optimal, and examples where unequal trading rates change the preferred venue.
+\item Implement and validate a simulator comparing random routing, shortest-queue routing, the power of two choices, and routing by estimated execution time.
+\item Evaluate these rules across documented scenarios, reporting execution probability, waiting time, uncertainty and queue-information requirements. Compare them with a full-information benchmark within the model.
+\item Deliver reproducible code, configurations, figures and a final report, supported by progress and project-management records and preparation for the viva.
+\end{enumerate}
+
+The preferred optional extension will compare statistical forecasts with one machine-learning model. Delayed queue observations are an alternative; one extension will be selected with the supervisor after core validation, if time permits. The core uses synthetic experiments; empirical calibration is conditional on suitable data.
+
+\section{Methods \& Methodology}
+
+I will combine literature review, mathematical analysis and controlled experiments. Reading notes will distinguish reproduced results from my own work. A limited financial model will allow predictions to be checked.
+
+\subsection*{Model and mathematical analysis}
+
+A single unit-sized limit order will initially be routed to one of several venues quoting the same price. Prices remain fixed during the execution horizon, with first-in-first-out priority. Opposing market orders remove one unit at a time, following independent Poisson processes with positive, venue-specific constant rates. Each unit ahead may cancel independently at a constant per-unit rate. New orders join behind it. The submitted order remains until execution or the deadline, with no splitting or rerouting. Market impact and adverse selection are outside the core model.
+
+I will begin with cases without cancellations, deriving expected execution times and deadline execution probabilities, then use a continuous-time Markov chain to include cancellations. Where tractable, probabilities will be computed directly. Simulation will check the implementation and provide a common framework for comparing policies and forecast-driven decisions. Analysis will investigate when the shortest queue gives the best execution probability, and whether minimising expected execution time gives the same decision.
+
+\subsection*{Algorithms and experimental design}
+
+Random routing will choose a venue uniformly. Shortest-queue routing will inspect every venue. The two-choice rule will sample two distinct venues uniformly and choose the shorter queue, breaking ties uniformly. The rate-aware rule will inspect all queues and minimise the model's expected execution time. A full-information benchmark will choose the venue with the highest computed probability of execution before the deadline. Rates will be known inputs in the core experiments; no rule will observe future events.
+
+Python with NumPy, SciPy and plotting libraries will support implementation; scikit-learn may be used for the optional forecasting model. Initial experiments will use 2, 5 and 10 venues, equal and unequal trading rates, several initial queue lengths, cancellation regimes and execution deadlines. Pilot timings will fix a manageable grid. Independent batches of simulated orders will estimate execution probabilities and uncertainty; common scenarios and compatible random streams will support fair comparisons between policies.
+
+Validation will use deterministic examples, analytical results without cancellations and Markov-chain probabilities. With two venues, the two-choice and shortest-queue rules should coincide. Results will report execution probability, mean time conditional on execution before the deadline, and queue observations per decision. Unfilled orders will be reported explicitly. Independent batches will provide confidence intervals; sensitivity checks will vary assumptions and sample sizes. Conclusions will be limited to the model; market-data extensions require separate calibration and validation.
+
+\subsection*{Optional forecasting and machine-learning investigation}
+
+This extension asks whether forecasts improve routing when venue rates are unknown or change over time. I will generate synthetic histories of opposing market-order counts in equal time intervals. A rolling-window mean and simple exponential smoothing will provide baselines \cite{hyndman2021}. If feasible, I will train one small machine-learning model, such as gradient-boosted regression trees, to predict the next interval's order count from recent counts. Cancellation rates will remain known. Scenarios will include constant activity and changes between low and high activity levels.
+
+Forecast settings will be selected through rolling-origin validation on earlier periods, then tested on a later held-out period \cite{hyndman2021}. Each decision will use only information available at that time. Forecast counts will give activity-rate estimates for the routing rule. Evaluation will compare forecast error, execution probability and computational cost, testing whether a more complex model improves routing. Independent simulated histories will assess uncertainty. Direct probability calculations will be used where tractable, including changing-rate cases; simulation will support the broader comparison. This extension depends on a validated core simulator and will use a limited training budget.
+
+\section{Timetable}
+
+The Gantt overview summarises workstreams; the weekly schedule gives outputs and dependencies. Assessment dates follow the supplied 2026--27 briefing and will be checked against Tabula. Holiday work is lighter, with revision and contingency time in March. Weekly effort will be adjusted around other coursework deadlines and Term 3 exam revision during viva preparation. I will retain the original plan, record changes and arrange supervision and monitoring meetings.
+
+\begin{center}
+\begingroup
+\small
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.25}
+\newcommand{\planned}{\rule{0.8em}{0.55em}}
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}X*{8}{c}@{}}
+\toprule
+Activity & Oct & Nov & Dec & Jan & Feb & Mar & Apr & May \\
+\midrule
+Literature and model & \planned & \planned & & & & & & \\
+Mathematical analysis & \planned & \planned & \planned & \planned & & & & \\
+Simulator and validation & & \planned & \planned & \planned & & & & \\
+Experiments and sensitivity & & & \planned & \planned & \planned & & & \\
+Reports and review & & \planned & \planned & & \planned & \planned & \planned & \\
+Viva preparation & & & & & & & \planned & \planned \\
+\bottomrule
+\end{tabularx}
+\par\smallskip
+{\footnotesize Filled cells indicate planned activity, October 2026--May 2027.}
+\endgroup
+\end{center}
+
+\begingroup
+\small
+\renewcommand{\arraystretch}{1.14}
+\setlength{\tabcolsep}{5pt}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.25\linewidth}>{\raggedright\arraybackslash}p{\dimexpr0.75\linewidth-10pt\relax}@{}}
+\toprule
+\textbf{Week beginning} & \textbf{Planned output and dependency} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Week beginning} & \textbf{Planned output and dependency} \\
+\midrule
+\endhead
+\midrule
+\multicolumn{2}{r}{\footnotesize Continued on the following page} \\
+\endfoot
+\bottomrule
+\endlastfoot
+12 October 2026 & Request feedback; submit specification on 15 October. \\
+19 October & Review literature; seek scope feedback and discuss computing access. \\
+26 October & Complete review; define model and policies; start analytical benchmarks. \\
+2 November & Derive no-cancellation benchmark; arrange monitoring meeting. \\
+9 November & Derive cancellation model; implement execution simulator. \\
+16 November & Validate simulator against analytical and numerical benchmarks. \\
+23 November & Implement routing rules; run validated pilot comparisons. \\
+30 November & Draft progress report; arrange monitoring meeting. \\
+7 December & Revise and submit progress report on 10 December. \\
+14 December & Review analytical comparisons and update experiments following feedback. \\
+21 December & Light workload; back up results and organise references. \\
+28 December & Light workload; outline analysis and report chapters. \\
+4 January 2027 & Refine analytical comparisons; confirm grid and batch sizes using pilots. \\
+11 January & Compare policies; analyse the effects of unequal trading rates. \\
+18 January & Vary cancellations, queue sizes and execution deadlines. \\
+25 January & Complete independent batches; investigate discrepancies. \\
+1 February & Check precision and model sensitivity; reproduce figures. \\
+8 February & Review core results; select extension and confirm resources; arrange monitoring. \\
+15 February & If forecasting is selected, compare baselines and train one small model. \\
+22 February & Evaluate later-period forecasts and routing, or agreed alternative; finish experiments. \\
+1 March & Freeze principal results; prepare final report plan. \\
+8 March & Draft report chapters; arrange monitoring meeting. \\
+15 March & Complete report draft; request supervisor feedback. \\
+22 March & Revise arguments and presentation; reserve rerun buffer. \\
+29 March & Final checks; complete project management report. \\
+5 April & Proofread and submit both reports on 8 April. \\
+12 April & Prepare viva slides from submitted work. \\
+19 April & Practise explanations of proofs and experimental choices. \\
+26 April & Rehearse viva and refine any demonstration. \\
+3 May & Attend or prepare for assigned viva slot. \\
+10 May & Complete viva within the 4--14 May assessment window. \\
+\end{longtable}
+\endgroup
+
+\section{Resources \& Risks}
+
+The core requires a standard computer, Python, the stated libraries and the cited papers. Synthetic inputs remove dependence on commercial data. I will check software availability and record versions. Git will preserve code and configurations; University storage will back up writing and results.
+
+I will investigate departmental computing facilities for model training and larger simulation experiments. Access and suitable resources will be discussed with my supervisor; specialist computing access is not yet confirmed. If these facilities are unavailable, I will reduce model size, training data and experiment sizes so the work remains feasible on a standard computer.
+
+\begin{description}
+\item[Financial scope.] If the proposed application is unsuitable, I will agree a classical parallel-server setting with my supervisor and adapt the routing policies and simulation framework.
+\item[Model complexity.] A full order book may exceed the available time. Keep the core to one order, fixed prices and explicit queue dynamics; discuss proof depth with the supervisor.
+\item[Implementation errors.] Incorrect queue events could invalidate comparisons. Require agreement with analytical cases before running large experiments.
+\item[Runtime and uncertainty.] Rare executions and model training may be costly. Use pilot timings, limit training runs, report uncertainty and reduce optional scenarios before compromising validation.
+\item[Forecast reliability.] A fitted model may overfit or fail to improve routing. Keep training, validation and test periods in time order, compare with simple baselines and report unsuccessful results.
+\item[Data access.] Data may be unavailable or unsuitable. Complete the core with synthetic inputs; make empirical calibration conditional on access and permissions.
+\item[Time and equipment.] Other assessments, delays or computer failure may interrupt work. Keep weekly records and backups, reserve revision time, and remove the extension first.
+\end{description}
+
+\section{Legal, Social, Ethical and Professional Issues \& Considerations}
+
+\textbf{Legal.} I will check software licences and any data-use conditions before using or sharing external material. The core uses synthetic data; any later dataset will require an assessment of its permitted use and redistribution.
+
+\textbf{Social.} Execution quality is relevant to how participants access liquidity. I will explain whose objective the routing model represents and avoid generalising its results to market fairness or profitability. Information costs and the limitations of the assumed market structure will be explicit.
+
+\textbf{Ethical.} The core involves no human participants or personal data. I will confirm applicable ethical-review requirements with my supervisor before changing that scope. Experiments will be conducted in simulation, with no live trading.
+
+\textbf{Professional.} I will attribute sources, preserve reproducible records, and report negative results and uncertainty honestly. Any trained model will be accompanied by its settings, data-generation procedure and evaluation results. The financial scope and its limitations will be discussed with the supervisor.
+
+\textbf{Use of generative AI.} OpenAI Codex was used to discuss the proposed project scope, suggest literature and methods, assist with LaTeX formatting.
+
+
+\begin{thebibliography}{4}
+\raggedright
+
+\bibitem{azar1999}
+Y.~Azar, A.~Z.~Broder, A.~R.~Karlin and E.~Upfal.
+\newblock Balanced Allocations.
+\newblock \emph{SIAM Journal on Computing}, 29(1):180--200, 1999.
+\newblock \href{https://doi.org/10.1137/S0097539795288490}{doi:10.1137/S0097539795288490}.
+\newblock Author manuscript: \url{https://www.cs.tau.ac.il/~azar/box.pdf}.
+
+\bibitem{cont2017}
+R.~Cont and A.~Kukanov.
+\newblock Optimal Order Placement in Limit Order Markets.
+\newblock \emph{Quantitative Finance}, 17(1):21--39, 2017.
+\newblock \href{https://doi.org/10.1080/14697688.2016.1190030}{doi:10.1080/14697688.2016.1190030}.
+\newblock Preprint: \url{https://arxiv.org/abs/1210.1625}.
+
+\bibitem{huang2015}
+W.~Huang, C.-A.~Lehalle and M.~Rosenbaum.
+\newblock Simulating and Analyzing Order Book Data: The Queue-Reactive Model.
+\newblock \emph{Journal of the American Statistical Association}, 110(509):107--122, 2015.
+\newblock \href{https://doi.org/10.1080/01621459.2014.982278}{doi:10.1080/01621459.2014.982278}.
+\newblock Preprint: \url{https://arxiv.org/abs/1312.0563}.
+
+\bibitem{hyndman2021}
+R.~J.~Hyndman and G.~Athanasopoulos.
+\newblock \emph{Forecasting: Principles and Practice}, 3rd edition.
+\newblock OTexts, Melbourne, 2021. Chapters 5 and 8.
+\newblock \url{https://otexts.com/fpp3/}.
+\newblock Accessed 15 October 2026.
+
+\end{thebibliography}
+
+\end{document}

@@ -1,0 +1,250 @@
+% CS344 Progress Report -- initial draft, 8 November 2026
+% Author: Kaya Kaya, Student ID 5587546
+%
+% Cover layout adapted from University of Warwick Report Template
+% by Chris Quinn (2020), as used in specification.tex.
+% Source: https://www.overleaf.com/latex/templates/university-of-warwick-report-template/kfpfvcbkdcdk
+% Licence: https://creativecommons.org/licenses/by/4.0/
+% Changes: progress-report content, subtitle, draft label, margins and headings.
+% warwick-crest.pdf is unchanged; University identity and trademark rights
+% remain with their respective owners.
+%
+% Compile with pdfLaTeX twice, from this directory or the repository root.
+% Keep assets/warwick-crest.pdf in its subdirectory when uploading to Overleaf.
+% No separate class or bibliography file is required.
+% This is a starter, not a completed submission. Replace all draft notes.
+
+\documentclass[11pt,a4paper,oneside]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[british]{babel}
+\usepackage[margin=25mm]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{microtype}
+\usepackage{fancyhdr}
+\usepackage[hyphens]{url}
+\usepackage[hidelinks,breaklinks]{hyperref}
+
+\graphicspath{{assets/}{docs/reports/assets/}}
+\hypersetup{
+  pdftitle={Parallel Job Scheduling: Progress Report},
+  pdfauthor={Kaya Kaya},
+  pdfsubject={CS344 progress-report draft}
+}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{CS344: Parallel Job Scheduling}
+\fancyhead[R]{Progress report draft}
+\fancyfoot[C]{\thepage}
+\setlength{\headheight}{14pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.5em}
+\setlength{\emergencystretch}{2em}
+\urlstyle{same}
+
+% Visible notes identify work still needed before submission.
+\newcommand{\draftnote}[1]{\par\textit{To complete: #1}\par}
+
+\begin{document}
+
+\begin{titlepage}
+  \centering
+  \includegraphics[width=0.35\textwidth]{warwick-crest.pdf}\par
+  \vspace{1.3cm}
+  {\LARGE\bfseries Parallel Job Scheduling\par}
+  \vspace{0.3cm}
+  {\large Moldable Jobs in a Loss System\par}
+  \vspace{0.9cm}
+  {\large Progress Report\par}
+  \vspace{0.3cm}
+  {\normalsize Initial draft: 8 November 2026\par}
+  \vspace{1.2cm}
+  {\large\bfseries Kaya Kaya\par}
+  \vspace{0.3cm}
+  Student ID 5587546\par
+  Discrete Mathematics\par
+  \vfill
+  {\large Supervisor: Dr Arpan Mukhopadhyay\par}
+  \vspace{0.4cm}
+  {\large\bfseries Department of Computer Science\par}
+  \vspace{0.3cm}
+  {\large University of Warwick\par}
+\end{titlepage}
+
+\setcounter{page}{1}
+
+\section{Introduction and objectives}
+
+Parallel jobs can use several servers at once. Giving more servers to one job
+reduces its execution time, but leaves fewer servers available for later arrivals.
+This project studies that trade-off in a loss system: a job that finds no idle
+server is rejected rather than queued.
+
+The first goal is to fully reproduce the paper by Mukhopadhyay
+et al.~\cite{mukhopadhyay2026}: its model, algorithms, mathematical results and
+experiments. After completion and review, the supervisor will be asked whether
+a finance application is feasible. That later direction remains undecided.
+
+\subsection{Relationship to the original specification}
+
+The original specification proposed order routing between trading venues, with
+cancellations and execution deadlines. The current work reproduces the paper's
+moldable-job loss system. Financial applicability will be discussed after
+reproduction is complete.
+The original specification is retained as a record of the initial proposal.
+
+\draftnote{Record the reasons for the reproduction-first sequence, its effect on
+the original plan, and supervisor feedback. Finance applicability remains undecided.}
+
+\section{Background and model}
+
+A \emph{moldable job} can use a chosen number of servers, fixed from its start
+until completion. If its one-server execution time is $X$ and its allocation is
+$k$, its execution time is
+\begin{equation}
+  T = \frac{X}{s_k},
+\end{equation}
+where $s_k$ is the speedup on $k$ servers. A concave speedup curve represents
+diminishing gains from additional servers.
+
+The paper derives an allocation optimisation problem and shows that an optimal
+solution can use at most two neighbouring allocation sizes under its assumptions.
+Its allocation policy has asymptotic optimality guarantees as the system grows;
+this does not establish that it is the best policy for every finite system
+\cite{mukhopadhyay2026}.
+
+\draftnote{Explain the optimisation, its assumptions and benchmark. Compare the
+paper critically with related work, including differences in queueing and speedup
+assumptions.}
+
+\subsection{Current baseline}
+
+The initial implementation uses the following single-class model.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Setting & Baseline value \\
+\midrule
+Servers & $n=100$, identical and initially idle \\
+Maximum allocation & $d=5$ servers per job \\
+Job sizes & Independent exponential $X$, with $\mathbb{E}[X]=1$ \\
+Arrivals & Poisson, independent of job sizes \\
+Normalized load & $\rho=0.8$ \\
+Arrival rate & $a=\rho n/\mathbb{E}[X]=80$ per time unit \\
+Speedups & $(s_1,s_2,s_3,s_4,s_5)=(1,1.8,2.5,3,3.4)$ \\
+Waiting queue & None \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Greedy allocation assigns $\min(d,i)$ servers when $i>0$ servers are idle.
+The current randomized policy samples a target of three servers with probability
+$0.625$, or four with probability $0.375$, and assigns the smaller of that target
+and $i$. Both policies reject an arrival only when $i=0$.
+
+These randomized targets and probabilities are currently fixed for this baseline.
+Calculating them automatically from the model settings is the next implementation
+task. Changing the load or speedup curve requires recalculating them.
+
+\section{Implementation and validation}
+
+An event-driven Python simulator advances between arrivals and completions.
+Completion events are kept in a priority queue. This avoids stepping through time
+intervals in which nothing happens. Completions are processed before arrivals at
+the same time, and all servers allocated to a completed job are released together.
+
+The implementation separates job state, server capacity, simulation control,
+allocation policies, workload generation and statistics. Reusable code is in the
+\texttt{scheduling/} package. A single \texttt{main.py} entry point compares both
+policies on the same seeded arrival times and job sizes. Allocation decisions use
+a separate random stream.
+
+Automated checks cover deterministic event traces, server conservation, rejection
+when capacity is exhausted, simultaneous events, measurement cutoffs and seeded
+repeatability. The current implementation passes 80 tests. These checks support
+implementation correctness; they do not establish agreement with all of the
+paper's experiments.
+
+\draftnote{Add a worked validation example and explain the main design choices
+and limitations using specific evidence.}
+
+\section{Evaluation method and current evidence}
+
+For measured arrivals, the blocking estimate is
+\begin{equation}
+  \widehat{P}_{\mathrm{block}}
+  = \frac{N_{\mathrm{rejected}}}{N_{\mathrm{arrivals}}}.
+\end{equation}
+The mean execution-time estimate includes accepted jobs only:
+\begin{equation}
+  \widehat{D}
+  = \frac{1}{N_{\mathrm{accepted}}}
+    \sum_{j\,\mathrm{accepted}} T_j.
+\end{equation}
+The first estimate is undefined if there are no measured arrivals; the second is
+undefined if none is accepted.
+
+A configurable initial number of arrivals is excluded as warm-up. Active jobs
+remain in the system at the cutoff. Measured accepted jobs contribute their full
+execution times, including completions after the last arrival.
+
+The current entry point runs one seeded baseline comparison. Earlier pilot output
+files were removed during repository cleanup on 8 November; no saved experiment
+results are currently available. Numerical agreement with Figure 2 and Table I
+has not yet been established.
+
+\draftnote{Specify the repeated-run protocol, justify warm-up and run lengths,
+report uncertainty, and add saved results with settings and reproduction commands.
+Resolve any unreported paper settings before claiming numerical reproduction.}
+
+\section{Remaining work and timetable}
+
+The next tasks are to derive the arrival rate from model settings, calculate the
+optimal allocation targets and their probabilities, and validate those
+calculations against known cases. Subsequent work will add repeated experiments,
+reproduce Figure 2 and Table I, and implement the heterogeneous-workload model
+in Section VI of the paper.
+
+The progress-report deadline is 10 December 2026 at 12 noon. The available budget
+until then is approximately eight to ten hours per week. Mathematical reading,
+report writing and supervisor feedback must run alongside implementation.
+
+\draftnote{Add a feasible updated timetable with dependencies, effort estimates,
+contingency and an agreed supervisor-feedback date. Distinguish work planned
+before the progress report from work planned for the rest of the project.}
+
+\section{Reflection and professional considerations}
+
+The current implementation provides a baseline, while general allocation
+calculations, complete experimental evidence and the multi-class extension remain
+unfinished. Reproduction also depends on clarifying missing experimental details,
+including the Mixed-Erlang construction and the original measurement conventions.
+These questions should be resolved with the supervisor or recorded as explicit
+assumptions.
+
+\draftnote{Reflect on specific difficulties, decisions and changes to the plan.
+Explain relevant legal, social, ethical and professional issues. Record the
+ethical-review status after checking the applicable requirements.}
+
+\begin{thebibliography}{9}
+\bibitem{mukhopadhyay2026}
+A. Mukhopadhyay, S. Ghanbarian, R. R. Mazumdar and F. Guillemin,
+``On Optimal Server Allocation for a Loss System With Moldable Jobs,''
+\emph{IEEE Transactions on Networking}, vol.~34, pp.~384--397, 2026.
+doi: \href{https://doi.org/10.1109/TON.2025.3598595}{10.1109/TON.2025.3598595}.
+\end{thebibliography}
+
+\appendix
+\section{Original specification}
+
+\draftnote{Append the original submitted specification to the final submission
+PDF. Include an approved revised specification separately if appropriate.}
+
+\end{document}

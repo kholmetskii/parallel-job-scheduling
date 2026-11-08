@@ -1,8 +1,8 @@
 import unittest
 
-from run_fixed import EXAMPLE_ARRIVALS
-from simulation import Simulator
-from workload import WorkloadGenerator
+from scheduling.simulation import Simulator
+from scheduling.workload import WorkloadGenerator
+from tests.fixtures import EXAMPLE_ARRIVALS
 
 
 class StatisticsTests(unittest.TestCase):

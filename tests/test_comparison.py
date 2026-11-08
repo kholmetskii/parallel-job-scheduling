@@ -1,9 +1,10 @@
 import math
 import unittest
 
-from run_comparison import policy_differences, run_policy
-from run_experiment import BASELINE
-from workload import WorkloadGenerator
+from scheduling.analysis import policy_differences
+from scheduling.config import ModelSettings
+from scheduling.experiments import BASELINE, run_policy
+from scheduling.workload import WorkloadGenerator
 
 
 def observation(policy, seed, blocking, execution):
@@ -14,6 +15,15 @@ def observation(policy, seed, blocking, execution):
 
 
 class ComparisonTests(unittest.TestCase):
+    def test_supplied_model_controls_capacity_and_speedups(self):
+        model = ModelSettings(servers=6, speedups=(1, 2, 3))
+        result = run_policy([(0, 3), (0, 3)], 0, "greedy", 0, model=model)
+        self.assertEqual(result["servers"], 6)
+        self.assertEqual(result["speedups"], [1, 2, 3])
+        self.assertEqual(result["measured_allocations"]["3"], 2)
+        self.assertEqual(result["mean_execution_time"], 1.0)
+        self.assertEqual(result["final_idle_servers"], 6)
+
     def test_matched_trials_use_identical_inputs_and_valid_allocations(self):
         arrivals = WorkloadGenerator(80, seed=7).generate(110)
         original = arrivals.copy()

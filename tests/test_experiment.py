@@ -1,7 +1,8 @@
 import math
 import unittest
 
-from run_experiment import BASELINE, compare_runs, run_trial, summarize_runs
+from scheduling.analysis import compare_runs, summarize_runs
+from scheduling.experiments import BASELINE, run_trial
 
 
 def observation(seed, blocking, execution, configuration=BASELINE):
@@ -50,7 +51,7 @@ class ExperimentTests(unittest.TestCase):
         variant = (1000, 100_000)
         rows = [observation(0, 0.2, 1.0), observation(1, 0.3, 2.0),
                 observation(1, 0.4, 2.3, variant), observation(0, 0.21, 1.1, variant)]
-        comparison = compare_runs(rows)[0]
+        comparison = compare_runs(rows, BASELINE)[0]
         self.assertAlmostEqual(comparison["blocking_probability_mean_delta"], 0.055)
         self.assertAlmostEqual(comparison["blocking_probability_delta_sd"], 0.09 / math.sqrt(2))
         self.assertAlmostEqual(comparison["mean_execution_time_mean_delta"], 0.2)
@@ -61,7 +62,7 @@ class ExperimentTests(unittest.TestCase):
                 observation(0, 0.21, 1.1, (1000, 100_000)),
                 observation(2, 0.4, 2.3, (1000, 100_000))]
         with self.assertRaises(ValueError):
-            compare_runs(rows)
+            compare_runs(rows, BASELINE)
 
 
 if __name__ == "__main__":

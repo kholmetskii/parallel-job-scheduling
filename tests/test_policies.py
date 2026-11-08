@@ -2,8 +2,8 @@ import random
 import unittest
 from unittest.mock import patch
 
-from policies import GreedyPolicy, RandomizedPolicy
-from simulation import Simulator
+from scheduling.policies import GreedyPolicy, RandomizedPolicy
+from scheduling.simulation import Simulator
 
 
 class PolicyTests(unittest.TestCase):

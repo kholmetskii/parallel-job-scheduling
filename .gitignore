@@ -3,3 +3,10 @@
 __pycache__/
 *.py[cod]
 .DS_Store
+/out/
+
+# Local AI assistant instructions, skills, and coaching notes
+AGENTS.md
+AGENTS.override.md
+.agents/
+.codex/

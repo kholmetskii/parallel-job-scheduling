@@ -3,11 +3,14 @@
 We simulate jobs sharing a pool of servers. We compare greedy allocation
 with the paper's randomized rule to study blocking and execution time.
 
+The settings below describe the baseline experiments. The simulator also accepts
+a configured speedup curve; its length determines the maximum allocation.
+
 ## Servers
 
 - Start with 100 identical servers, all idle.
 - Each server can work on one job at a time.
-- Each job can use up to 5 servers together.
+- In the baseline, each job can use up to 5 servers together.
 
 ## Jobs and arrivals
 
@@ -20,7 +23,8 @@ with the paper's randomized rule to study blocking and execution time.
 
 ## Greedy allocation
 
-- When a job arrives, give it `min(5, idle servers)` servers.
+- When a job arrives, give it `min(maximum allocation, idle servers)` servers.
+  The default maximum is the number of speedup entries, which is 5 in the baseline.
 - If no server is idle, reject the job. There is no waiting queue or retry.
 - An accepted job starts immediately and keeps its allocation until completion.
 
@@ -38,6 +42,7 @@ with the paper's randomized rule to study blocking and execution time.
 
 - Speedups for 1, 2, 3, 4, and 5 servers are `1, 1.8, 2.5, 3, 3.4`, respectively.
 - Execution time is `job size / speedup`.
+- Simulator supplies each job with the speedup for its chosen allocation.
 - On completion, release all of the job's servers together.
 - Process completions before arrivals at the same time. Process simultaneous
   arrivals in input order.
