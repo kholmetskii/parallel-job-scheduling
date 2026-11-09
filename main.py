@@ -9,8 +9,7 @@ def main() -> None:
     model = ModelSettings()
     experiment = ExperimentSettings()
     seed = experiment.seeds[0]
-    arrival_rate = model.normalized_load * model.servers / model.mean_job_size
-    arrivals = WorkloadGenerator(arrival_rate, model.mean_job_size, seed=seed).generate(
+    arrivals = WorkloadGenerator(model.arrival_rate, model.mean_job_size, seed=seed).generate(
         experiment.warmup_arrivals + experiment.measured_arrivals)
 
     print(f"Servers: {model.servers}; workload seed: {seed}")

@@ -3,7 +3,8 @@ import unittest
 from unittest.mock import patch
 
 from scheduling.policies import GreedyPolicy, RandomizedPolicy
-from scheduling.simulation import Simulator
+from scheduling.simulator import Simulator
+from tests.fixtures import make_jobs
 
 
 class PolicyTests(unittest.TestCase):
@@ -47,7 +48,7 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(random.getstate(), state)
 
     def test_reused_simulator_restarts_the_seeded_policy(self):
-        arrivals = [(time, 3.0) for time in range(20)]
+        arrivals = make_jobs([(time, 3.0) for time in range(20)])
         simulator = Simulator(servers=100, policy=RandomizedPolicy(seed=42))
         first = simulator.run(arrivals)
         self.assertEqual(first, simulator.run(arrivals))
@@ -57,12 +58,12 @@ class PolicyTests(unittest.TestCase):
     def test_partial_allocation_rejection_and_completion_order(self):
         policy = RandomizedPolicy(seed=42)
         with patch.object(policy.rng, "random", side_effect=[0.1, 0.9, 0.1, 0.9]):
-            result = Simulator(5, policy).run([(0, 2.5), (0.1, 1.8), (0.2, 1), (1, 2.5)])
+            result = Simulator(5, policy).run(make_jobs([(0, 2.5), (0.1, 1.8), (0.2, 1), (1, 2.5)]))
         events = result["events"]
-        self.assertEqual([(e["job_id"], e["allocated_servers"])
-                          for e in events if e["event"] == "accepted"], [(1, 3), (2, 2), (4, 3)])
+        self.assertEqual([(e.job_id, e.allocated_servers)
+                          for e in events if e.kind == "accepted"], [(1, 3), (2, 2), (4, 3)])
         self.assertEqual(result["rejected"], 1)
-        self.assertEqual([(e["event"], e["job_id"]) for e in events if e["time"] == 1],
+        self.assertEqual([(e.kind, e.job_id) for e in events if e.time == 1],
                          [("completed", 1), ("accepted", 4)])
         self.assertEqual(result["final_idle_servers"], 5)
         self.assertAlmostEqual(result["statistics"]["mean_execution_time"], 1.0)
@@ -90,7 +91,7 @@ class PolicyTests(unittest.TestCase):
 
         for allocation in (-1, 0, True, 6):
             with self.subTest(allocation=allocation), self.assertRaises(ValueError):
-                Simulator(servers=5, policy=InvalidPolicy(allocation)).run([(0, 1)])
+                Simulator(servers=5, policy=InvalidPolicy(allocation)).run(make_jobs([(0, 1)]))
 
 
 if __name__ == "__main__":

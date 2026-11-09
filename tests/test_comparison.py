@@ -3,8 +3,10 @@ import unittest
 
 from scheduling.analysis import policy_differences
 from scheduling.config import ModelSettings
-from scheduling.experiments import BASELINE, run_policy
+from scheduling.experiments import BASELINE, run_policy, run_trial, workload_digest
+from scheduling.job import Job
 from scheduling.workload import WorkloadGenerator
+from tests.fixtures import make_jobs
 
 
 def observation(policy, seed, blocking, execution):
@@ -17,7 +19,7 @@ def observation(policy, seed, blocking, execution):
 class ComparisonTests(unittest.TestCase):
     def test_supplied_model_controls_capacity_and_speedups(self):
         model = ModelSettings(servers=6, speedups=(1, 2, 3))
-        result = run_policy([(0, 3), (0, 3)], 0, "greedy", 0, model=model)
+        result = run_policy(make_jobs([(0, 3), (0, 3)]), 0, "greedy", 0, model=model)
         self.assertEqual(result["servers"], 6)
         self.assertEqual(result["speedups"], [1, 2, 3])
         self.assertEqual(result["measured_allocations"]["3"], 2)
@@ -38,6 +40,35 @@ class ComparisonTests(unittest.TestCase):
             self.assertEqual(row["total_accepted"], row["total_completed"])
             self.assertEqual(row["final_idle_servers"], 100)
         self.assertEqual(randomized["measured_allocations"]["5"], 0)
+
+    def test_warmup_allocation_counts_follow_arrival_order(self):
+        jobs = [Job(id=100, size=10, arrival_time=0),
+                Job(id=3, size=1, arrival_time=1),
+                Job(id=50, size=2, arrival_time=10),
+                Job(id=1, size=1, arrival_time=11)]
+        result = run_policy(jobs, 0, "greedy", 1, model=ModelSettings(servers=1))
+        self.assertEqual(result["measured_arrivals"], 3)
+        self.assertEqual((result["measured_accepted"], result["measured_rejected"]), (1, 2))
+        self.assertEqual(result["measured_allocations"]["1"], 1)
+        self.assertEqual(sum(result["measured_allocations"].values()), 1)
+        self.assertEqual(result["mean_execution_time"], 2)
+
+    def test_workload_fingerprint_changes_when_any_job_input_changes(self):
+        original = workload_digest([Job(id=1, size=1, arrival_time=0)])
+        for job in (Job(id=2, size=1, arrival_time=0),
+                    Job(id=1, size=2, arrival_time=0),
+                    Job(id=1, size=1, arrival_time=1)):
+            with self.subTest(job=job):
+                self.assertNotEqual(workload_digest([job]), original)
+
+    def test_experiment_results_are_independent_of_event_history(self):
+        jobs = WorkloadGenerator(80, seed=7).generate(110)
+        for policy in ("greedy", "randomized"):
+            with self.subTest(policy=policy):
+                expected = run_policy(jobs, 7, policy, 10, policy_seed=10007)
+                actual = run_policy(jobs, 7, policy, 10, policy_seed=10007, record_events=False)
+                self.assertEqual(actual, expected)
+                self.assertEqual(run_trial(7, 10, 100, policy=policy, record_events=False), expected)
 
     def test_known_paired_differences_match_seed_ids(self):
         rows = [observation("greedy", 0, 0.2, 1), observation("greedy", 1, 0.4, 3),
@@ -61,7 +92,7 @@ class ComparisonTests(unittest.TestCase):
             policy_differences(rows)
 
     def test_comparison_requires_measured_jobs_and_a_seeded_random_policy(self):
-        jobs = [(0, 1)]
+        jobs = make_jobs([(0, 1)])
         for warmup in (-1, True, 1, 1.5):
             with self.subTest(warmup=warmup), self.assertRaises(ValueError):
                 run_policy(jobs, 0, "greedy", warmup)

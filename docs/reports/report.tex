@@ -160,7 +160,7 @@ Completion events are kept in a priority queue. This avoids stepping through tim
 intervals in which nothing happens. Completions are processed before arrivals at
 the same time, and all servers allocated to a completed job are released together.
 
-The implementation separates job state, server capacity, simulation control,
+The implementation separates immutable job inputs, server capacity, simulation control,
 allocation policies, workload generation and statistics. Reusable code is in the
 \texttt{scheduling/} package. A single \texttt{main.py} entry point compares both
 policies on the same seeded arrival times and job sizes. Allocation decisions use
@@ -168,7 +168,7 @@ a separate random stream.
 
 Automated checks cover deterministic event traces, server conservation, rejection
 when capacity is exhausted, simultaneous events, measurement cutoffs and seeded
-repeatability. The current implementation passes 80 tests. These checks support
+repeatability. The current implementation passes 92 tests. These checks support
 implementation correctness; they do not establish agreement with all of the
 paper's experiments.
 

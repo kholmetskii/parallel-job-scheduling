@@ -16,10 +16,15 @@ a configured speedup curve; its length determines the maximum allocation.
 
 - Jobs arrive according to a Poisson process at rate `0.8 * n`, where `n` is
   the number of servers. With 100 servers, this averages 80 arrivals per time unit.
+- `ModelSettings.arrival_rate` derives the general rate as
+  `normalized_load * servers / mean_job_size`. Workload generation and experiment
+  metadata use this property, so changing mean size preserves the configured load.
 - Each job has an exponential size `X` with mean 1. This is its execution time
   on one server.
 - Job sizes are independent of each other and of arrivals.
 - Time is measured in units where average one-server execution time is 1.
+- Workloads contain immutable `Job(id, size, arrival_time)` objects, which can
+  be shared between policy runs. IDs must be unique within each workload.
 
 ## Greedy allocation
 
@@ -42,7 +47,13 @@ a configured speedup curve; its length determines the maximum allocation.
 
 - Speedups for 1, 2, 3, 4, and 5 servers are `1, 1.8, 2.5, 3, 3.4`, respectively.
 - Execution time is `job size / speedup`.
-- Simulator supplies each job with the speedup for its chosen allocation.
+- ServerPool calculates completion time using the chosen allocation's speedup.
+  Starting a job reserves capacity and schedules its completion together;
+  completing a job removes that completion and releases its allocation together.
+- ServerPool owns a private CompletionQueue with entries
+  `(completion_time, job_id, allocated_servers, job)`. Allocation and completion
+  time belong to that run rather than the input job. Simulator advances time
+  and coordinates arrivals, completions, Statistics, and Logger.
 - On completion, release all of the job's servers together.
 - Process completions before arrivals at the same time. Process simultaneous
   arrivals in input order.
@@ -59,6 +70,9 @@ a configured speedup curve; its length determines the maximum allocation.
   the final arrival. Choose experimental warm-up and run lengths in M6.
 - If there are no measured arrivals, blocking probability is unavailable.
 - If no measured job is accepted, mean execution time is unavailable.
+- Statistics owns whole-run counts and measurements after warm-up, including
+  allocation frequencies. Logger records optional event history independently;
+  `record_events=False` leaves all measurements unchanged.
 
 ## Reference
 

@@ -55,9 +55,9 @@ The [project workflow](../AGENTS.md) records these rules for future coding sessi
 
 Generalize the single-class allocation rule. The first three tasks are:
 
-- [ ] Derive arrival rate in ModelSettings from load, server count, and mean job size.
 - [ ] Find the optimal single target or two neighbouring targets in `scheduling/allocation.py`.
 - [ ] Calculate target probabilities from the model settings.
+- [ ] Pass the calculated targets and probabilities into RandomizedPolicy and check the baseline.
 
 ## Reproduction roadmap
 
@@ -71,9 +71,23 @@ Generalize the single-class allocation rule. The first three tasks are:
 
 ## What we have now
 
-- A tested event-driven simulator with Job, ServerPool, Statistics, and two policies.
+- A tested event-driven [Simulator](../scheduling/simulator.py), with [Job](../scheduling/job.py),
+  [ServerPool](../scheduling/server_pool.py), and [Statistics](../scheduling/statistics.py) in their own modules; two allocation policies.
+- [Logger](../scheduling/logger.py) creates and stores immutable [Event](../scheduling/event.py)
+  snapshots, with attributes such as `event.time` and `event.kind`. Event retention
+  can be disabled with `record_events=False` without changing measurements.
+  Conservation and event-order assertions remain in tests.
+- Workloads contain immutable `Job(id, size, arrival_time)` objects. Each run
+  has a ServerPool that owns capacity, job execution, and a private
+  [CompletionQueue](../scheduling/completion_queue.py). Simulator owns the clock
+  and event order. Statistics owns total counts, measurements after warm-up,
+  and allocation counts; experiment helpers read those summaries directly.
+  Warm-up follows arrival order, including when supplied IDs are nonconsecutive.
 - Default model: 100 servers, Poisson arrivals at rate `0.8 * servers`, exponential
   job sizes with mean 1, and speedups `(1, 1.8, 2.5, 3, 3.4)`.
+- `ModelSettings.arrival_rate` derives arrival intensity from normalized load,
+  server count, and mean job size. Both workload creation paths and experiment
+  metadata use this property.
 - Randomized targets remain hardcoded at 3/4 with probabilities 0.625/0.375;
   calculating them from settings is still pending.
 - ModelSettings and ExperimentSettings validate inputs. Run helpers use the
@@ -82,7 +96,9 @@ Generalize the single-class allocation rule. The first three tasks are:
   shared seeded workload using the first configured seed and prints a summary.
 - Reusable run functions are in `scheduling/experiments.py`; across-run summaries
   and comparisons are in `scheduling/analysis.py`; checks are in `tests/`.
-- Latest check: 80 automated tests pass, including custom model settings in run helpers.
+- Latest check: 92 automated tests pass, including pool lifecycle operations,
+  warm-up and allocation counts, independent summary snapshots, and identical
+  measurements with event retention disabled.
 - An initial [progress-report draft](reports/report.tex) with the current model and
   implementation, a paper reference, and visible notes for unfinished sections.
 
@@ -98,8 +114,8 @@ experiment outputs. Full paper reproduction still needs fresh experiment evidenc
 
 ## What we completed
 
-Dates show when the work was committed to Git. Work may have been completed
-earlier; milestones committed together share a date.
+Dates through 6 November show when the work was committed to Git. Work may
+have been completed earlier; milestones committed together share a date.
 
 - [x] 3 November 2026: Define the [model](model.md).
 - [x] 3 November 2026: Set up the project.
@@ -113,7 +129,7 @@ earlier; milestones committed together share a date.
 - [x] 6 November 2026: Save reproducible results, reports, and PNG/SVG figures.
 - [x] 6 November 2026: Check correctness with 53 passing automated tests at that commit.
 
-The following dates record completed implementation work after the latest commit:
+The following dates record when later implementation and project work was completed:
 
 - [x] 7 November 2026: Add ModelSettings with server count, load, mean size, and speedups.
 - [x] 7 November 2026: Add ExperimentSettings with seeds, run lengths, server counts,
@@ -150,6 +166,63 @@ The following dates record completed implementation work after the latest commit
 - [x] 8 November 2026: Clarify the research sequence in the plan, context,
   reproduction checklist, workflow instructions and report: finish full paper
   reproduction first, then discuss finance feasibility with Arpan.
+
+- [x] 8 November 2026: Give Job, ServerPool, and Statistics their own modules;
+  rename the event-loop module to `scheduling/simulator.py` and its test file
+  to `tests/test_simulator.py`. Update imports, pass all 80 tests with
+  `.venv/bin/python -B -m unittest discover -s tests -q`, and confirm that
+  `.venv/bin/python -B main.py` prints exactly the same seeded baseline summary.
+
+- [x] 8 November 2026: Add an immutable Event dataclass in `scheduling/event.py`;
+  use Event objects in the simulator log and update experiment helpers and
+  existing tests to read their attributes. All 80 tests pass with
+  `.venv/bin/python -B -m unittest discover -s tests -q`;
+  `.venv/bin/python -B main.py` prints the same seeded baseline summary.
+
+- [x] 8 November 2026: Simplify `Simulator.record()` to append an Event snapshot.
+  Remove its per-event bookkeeping checks; retain input validation and the
+  independent conservation and event-order checks in existing tests. All
+  80 tests pass with `.venv/bin/python -B -m unittest discover -s tests -q`;
+  `.venv/bin/python -B main.py` prints the same seeded baseline summary.
+
+- [x] 8 November 2026: Make Job an immutable input containing only `id`, `size`,
+  and `arrival_time`. Generate jobs directly and keep each run's allocations
+  and completion times in its completion heap. Update measurement to use arrival
+  order for warm-up and include IDs in workload fingerprints. All 85 tests pass
+  with `.venv/bin/python -B -m unittest discover -s tests -q`. Compare complete
+  event traces and numerical measurements against the previous implementation
+  for seeds 0, 7, and 42 with both policies, plus simultaneous and zero-duration
+  arrivals; all match exactly. `.venv/bin/python -B main.py` prints the same baseline.
+
+- [x] 8 November 2026: Extract Logger for immutable event snapshots and
+  CompletionQueue for scheduling and retrieving future completions. Keep clock
+  advancement, arrival handling, and completion handling in Simulator; move
+  measurement-summary construction into `Statistics.summary()`. All 85 existing
+  tests pass with `.venv/bin/python -B -m unittest discover -s tests -q`.
+  Complete event traces, statistics, fingerprints, and experiment outputs match
+  the previous implementation for seeds 0, 7, and 42 with both policies;
+  `.venv/bin/python -B main.py` prints the same seeded baseline summary.
+
+- [x] 8 November 2026: Give ServerPool ownership of starting/completing jobs,
+  capacity, speedup calculations, and its private CompletionQueue. Keep only
+  clock advancement, event ordering, and coordination in Simulator. Move whole-run
+  counts and measured allocation frequencies into Statistics; remove measurement
+  calculations from the experiment helper's event-log processing. Allow Logger
+  retention to be disabled through `record_events=False`. All 92 tests pass with
+  `.venv/bin/python -B -m unittest discover -s tests -q`. Check 14 baseline cases
+  covering both policies, three seeds, custom IDs/curves, warm-up, empty inputs,
+  and simultaneous/zero-duration arrivals: event traces, original measurements,
+  allocation frequencies, fingerprints, and experiment outputs are unchanged.
+  Disabling event retention leaves every measurement unchanged, and
+  `.venv/bin/python -B main.py` prints the same seeded baseline summary.
+
+- [x] 8 November 2026: Add the derived `ModelSettings.arrival_rate` property and
+  use it in `main.py`, experiment workload generation, and returned metadata.
+  All 92 tests pass with `.venv/bin/python -B -m unittest discover -s tests -q`;
+  `.venv/bin/python -B main.py` prints the same seeded baseline summary. Check
+  both policies with 40 servers, load 0.6, seed 7, 1,000 arrivals and 100 warm-up
+  arrivals: doubling mean job size from 1 to 2 halves arrival rate from 24 to 12,
+  doubles execution times, and preserves allocations and blocking probability.
 
 ## Later: discuss finance feasibility
 

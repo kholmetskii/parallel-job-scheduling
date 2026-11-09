@@ -3,6 +3,8 @@
 import math
 import random
 
+from scheduling.job import Job
+
 
 class WorkloadGenerator:
     """Store workload settings and a local random number generator."""
@@ -24,20 +26,21 @@ class WorkloadGenerator:
         self.seed = seed
         self.rng = random.Random(seed)
 
-    def generate(self, num_jobs: int) -> list[tuple[float, float]]:
-        """Return ordered (arrival time, size) pairs for a fixed job count.
+    def generate(self, num_jobs: int) -> list[Job]:
+        """Return immutable jobs in arrival order for a fixed job count.
 
-        Each call starts the arrival clock at zero and continues this object's
-        random stream. A fresh generator with the same seed reproduces it.
+        Each call restarts IDs at one and the arrival clock at zero, continuing
+        this object's random stream. A fresh generator with the same seed
+        reproduces the workload.
         """
         if type(num_jobs) is not int or num_jobs < 0:
             raise ValueError("num_jobs must be a nonnegative integer")
 
         arrivals = []
         arrival_time = 0.0
-        for _ in range(num_jobs):
+        for job_id in range(1, num_jobs + 1):
             gap = self.rng.expovariate(self.arrival_rate)
             arrival_time += gap
             job_size = self.rng.expovariate(1.0 / self.mean_job_size)
-            arrivals.append((arrival_time, job_size))
+            arrivals.append(Job(id=job_id, size=job_size, arrival_time=arrival_time))
         return arrivals

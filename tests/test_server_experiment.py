@@ -5,6 +5,7 @@ from unittest.mock import patch
 from scheduling.analysis import summarize_server_runs
 from scheduling.experiments import run_policy, run_trial
 from scheduling.workload import WorkloadGenerator
+from tests.fixtures import make_jobs
 
 
 def observation(servers, seed, blocking, execution):
@@ -16,7 +17,7 @@ def observation(servers, seed, blocking, execution):
 
 class ServerExperimentTests(unittest.TestCase):
     def test_capacity_and_arrival_rate_change_together(self):
-        jobs = [(0, 1), (0, 1), (0, 1)]
+        jobs = make_jobs([(0, 1), (0, 1), (0, 1)])
         with patch("scheduling.experiments.WorkloadGenerator") as generator:
             generator.return_value.generate.return_value = jobs
             small = run_trial(0, 0, 3, servers=1, policy="randomized")

@@ -2,7 +2,7 @@ import math
 import random
 import unittest
 
-from scheduling.simulation import Simulator
+from scheduling.simulator import Simulator
 from scheduling.workload import WorkloadGenerator
 
 
@@ -10,14 +10,15 @@ class WorkloadGeneratorTests(unittest.TestCase):
     def test_requested_count_and_ordered_finite_values(self):
         arrivals = WorkloadGenerator(arrival_rate=80, seed=42).generate(1000)
         self.assertEqual(len(arrivals), 1000)
-        self.assertGreater(arrivals[0][0], 0)
+        self.assertGreater(arrivals[0].arrival_time, 0)
         previous_time = 0.0
-        for arrival_time, size in arrivals:
-            self.assertTrue(math.isfinite(arrival_time))
-            self.assertGreaterEqual(arrival_time, previous_time)
-            self.assertTrue(math.isfinite(size))
-            self.assertGreaterEqual(size, 0)
-            previous_time = arrival_time
+        for index, job in enumerate(arrivals, start=1):
+            self.assertEqual(job.id, index)
+            self.assertTrue(math.isfinite(job.arrival_time))
+            self.assertGreaterEqual(job.arrival_time, previous_time)
+            self.assertTrue(math.isfinite(job.size))
+            self.assertGreaterEqual(job.size, 0)
+            previous_time = job.arrival_time
 
     def test_fresh_generators_with_same_seed_reproduce_workload(self):
         first = WorkloadGenerator(arrival_rate=80, seed=42).generate(100)
@@ -43,10 +44,10 @@ class WorkloadGeneratorTests(unittest.TestCase):
         gaps = []
         sizes = []
         previous_time = 0.0
-        for arrival_time, size in arrivals:
-            gaps.append(arrival_time - previous_time)
-            sizes.append(size)
-            previous_time = arrival_time
+        for job in arrivals:
+            gaps.append(job.arrival_time - previous_time)
+            sizes.append(job.size)
+            previous_time = job.arrival_time
 
         # Fixed seed and broad tolerances provide a deterministic sanity check.
         for samples, expected_mean in ((gaps, 1.0 / arrival_rate),

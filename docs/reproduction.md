@@ -44,9 +44,9 @@ are unavailable, or treat qualitative agreement alone as full numerical agreemen
 
 | Target | Current status | Evidence and work remaining |
 | --- | --- | --- |
-| Section II: loss-system model | Partial | [Baseline model](model.md), simulator and tests exist. Document the full parameterized model. |
+| Section II: loss-system model | Partial | [Baseline model](model.md), [simulator](../scheduling/simulator.py) and [tests](../tests/test_simulator.py) exist. Immutable [Job](../scheduling/job.py) inputs feed a [ServerPool](../scheduling/server_pool.py) that owns job execution and its private CompletionQueue; Simulator owns time and ordering. Statistics owns all counts and measurements, independently of Logger retention (8 November). All 92 tests pass; 14 baseline cases preserve prior traces and measurements with both policies, and disabling event retention preserves every measurement. `ModelSettings.arrival_rate` now derives the rate used by workload generation and metadata; a check with both policies confirms that doubling mean size halves the rate, doubles execution times, and preserves allocations and blocking. Document the full parameterized model. |
 | Section III: LP (7), Proposition 1, Theorem 1 | Partial | The current 3/4 mixture is implemented manually. General formulas and independent mathematical checks are pending. |
-| Section IV: greedy and greedy(p*) | Partial | Baseline behavior is checked by tests and main.py. Calculate p* for all required cases and collect new experiment evidence. |
+| Section IV: greedy and greedy(p*) | Partial | Baseline behavior is checked by tests and main.py; tests independently check conservation and event order. The event recorder only logs snapshots (8 November). Calculate p* for all required cases and collect new experiment evidence. |
 | Section V and Appendices A-E: proof arguments | Not started | Write checked notes on assumptions, proof steps, and what simulations can establish. |
 | Figure 2(a): blocking probability | Not started | Earlier pilot outputs were removed on 8 November. All published curves and sizes need new saved evidence. |
 | Figure 2(b): accepted-job execution time | Not started | Earlier pilot outputs were removed on 8 November. All published curves and sizes need new saved evidence. |
@@ -64,7 +64,12 @@ arrivals, with maximum parallelism 5. All listed job-size distributions have mea
 Earlier ten-seed pilot outputs were removed on 8 November at the user's request.
 The current main.py comparison uses one workload seed and prints its results.
 
-Arrival rate is `n * lambda(n)`, with `lambda(n) = 1 - beta * n**(-alpha)`:
+Arrival rate is `n * lambda(n)`, with `lambda(n) = 1 - beta * n**(-alpha)`.
+
+For mean inherent job size `m`, the implementation uses
+`ModelSettings.arrival_rate = normalized_load * servers / mean_job_size`.
+This reduces to the paper's `n * lambda(n)` when `m = 1`, as in its experiments.
+The traffic parameters are:
 
 | Regime | alpha | beta |
 | --- | ---: | ---: |
@@ -131,6 +136,10 @@ Record answers and their source here when received; do not invent missing settin
 - [x] Consolidate single-run logic in `scheduling/experiments.py`. Completed 8 November 2026.
 - [x] Consolidate across-run summaries and comparisons in `scheduling/analysis.py`;
   keep per-run measurements in Statistics. Completed 8 November 2026.
+- [x] Keep whole-run counts and measured allocation frequencies in Statistics,
+  independent of event retention; experiment helpers consume its summaries.
+  Check 92 tests and 14 comparison cases, including `record_events=False`.
+  Completed 8 November 2026.
 - [ ] Add repeated experiment execution through main.py using the configured cases and seeds.
 - [ ] Save actual settings, both random seeds, source revision/fingerprints, run
   lengths, counts, and per-run metrics with each experiment.

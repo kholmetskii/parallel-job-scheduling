@@ -75,6 +75,11 @@ class ModelSettings:
         self.mean_job_size = mean_job_size
         self.speedups = speedups
 
+    @property
+    def arrival_rate(self) -> float:
+        """Arrival intensity that gives the configured normalized load."""
+        return self.normalized_load * self.servers / self.mean_job_size
+
 
 class ExperimentSettings:
     """Validate and store inputs for repeated experiments and comparisons.
