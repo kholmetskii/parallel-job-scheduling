@@ -81,16 +81,10 @@ class AllocationTargetsTests(unittest.TestCase):
             optimal_allocation_targets(load, (1, 2, 3, 3.8, 4.4)), (3, 4),
         )
 
-    def test_accepts_list_curves_and_rejects_invalid_inputs(self):
+    def test_accepts_list_curves_without_mutating_them(self):
         speedups = list(SPEEDUPS)
         self.assertEqual(optimal_allocation_targets(0.8, speedups), (3, 4))
         self.assertEqual(speedups, list(SPEEDUPS))
-        for load in (0, 1, -0.1, 1.1, True, None, "0.8",
-                     float("nan"), float("inf"), 10**400):
-            with self.subTest(load=load), self.assertRaisesRegex(ValueError, "normalized_load"):
-                optimal_allocation_targets(load, SPEEDUPS)
-        with self.assertRaisesRegex(ValueError, "speedups"):
-            optimal_allocation_targets(0.8, (1, 1.8, 2.7))
 
     def test_selected_support_attains_the_exact_lp_minimum(self):
         curves = (
@@ -167,15 +161,11 @@ class AllocationProbabilitiesTests(unittest.TestCase):
                 self.assertEqual(len(targets), 2)
                 self.assertTrue(all(p > 0 for p in probabilities))
 
-    def test_reuses_input_validation_and_accepts_list_curves(self):
+    def test_probabilities_accept_list_curves(self):
         self.assertEqual(
             optimal_allocation_probabilities(0.8, list(SPEEDUPS)),
             optimal_allocation_probabilities(0.8, SPEEDUPS),
         )
-        with self.assertRaisesRegex(ValueError, "normalized_load"):
-            optimal_allocation_probabilities(1, SPEEDUPS)
-        with self.assertRaisesRegex(ValueError, "speedups"):
-            optimal_allocation_probabilities(0.8, (1, 1.8, 2.7))
 
     def test_distribution_is_feasible_and_attains_the_exact_lp_minimum(self):
         curves = (

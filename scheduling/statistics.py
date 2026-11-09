@@ -5,11 +5,7 @@ class Statistics:
     """Own all counts, allocation frequencies, and execution-time measurements."""
 
     def __init__(self, warmup_arrivals: int = 0, max_servers_per_job: int = 5) -> None:
-        if type(warmup_arrivals) is not int or warmup_arrivals < 0:
-            raise ValueError("warmup_arrivals must be a nonnegative integer")
         self.warmup_arrivals = warmup_arrivals
-        if type(max_servers_per_job) is not int or max_servers_per_job < 1:
-            raise ValueError("max_servers_per_job must be a positive integer")
         self.total_arrivals = 0
         self.total_accepted = 0
         self.total_rejected = 0

@@ -58,7 +58,8 @@ a configured speedup curve; its length determines the maximum allocation.
 - Between two neighbouring efficiencies, return their two allocation sizes.
 
 The function returns an increasing tuple, such as `(3, 4)` for the baseline.
-It validates its load and speedup inputs and has no random state. A tolerance of four
+It assumes valid load and speedup inputs, checked once in main.py, and has no
+random state. A tolerance of four
 floating-point steps handles division rounding at boundaries below unit load.
 Loads slightly below 1 still select a pair when required by a sublinear curve.
 
@@ -78,6 +79,11 @@ within rounding tolerance. The policy copies both input sequences into tuples.
 
 - main.py holds the run configuration. Simulator and ServerPool receive server
   count and speedups explicitly; reusable modules do not import the entry point.
+- main.py checks configuration once before generating jobs. Internal components
+  trust these settings and valid generated jobs. Job is a frozen dataclass with
+  no runtime validation; generated IDs are unique and arrivals are ordered.
+  Runtime checks retain allocation limits, arrival-time ordering and finite
+  completion times. Mathematical and conservation checks remain in the tests.
 - Speedups for 1, 2, 3, 4, and 5 servers are `1, 1.8, 2.5, 3, 3.4`, respectively.
 - Execution time is `job size / speedup`.
 - ServerPool calculates completion time using the chosen allocation's speedup.

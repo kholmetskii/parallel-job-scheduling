@@ -80,11 +80,6 @@ class StatisticsTests(unittest.TestCase):
                 self.assertEqual(result["completed"], result["accepted"])
                 self.assertEqual(result["final_idle_servers"], 6)
 
-    def test_rejects_invalid_warmup_counts(self):
-        for warmup in (-1, 1.5, True, None, "1"):
-            with self.subTest(warmup=warmup), self.assertRaises(ValueError):
-                Simulator(servers=100, speedups=SPEEDUPS).run([], warmup_arrivals=warmup)
-
     def test_zero_duration_is_a_valid_measured_execution_time(self):
         statistics = Simulator(servers=1, speedups=SPEEDUPS).run(make_jobs([(0, 0)]))["statistics"]
         self.assertEqual(statistics["accepted"], 1)

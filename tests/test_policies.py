@@ -68,18 +68,6 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(result["final_idle_servers"], 5)
         self.assertAlmostEqual(result["statistics"]["mean_execution_time"], 1.0)
 
-    def test_rejects_invalid_policy_settings_and_capacities(self):
-        for value in (0, -1, True, 1.5):
-            with self.subTest(max_servers=value), self.assertRaises(ValueError):
-                GreedyPolicy(value)
-        for value in (True, "42", 1.5):
-            with self.subTest(seed=value), self.assertRaises(ValueError):
-                RandomizedPolicy((3, 4), (0.625, 0.375), seed=value)
-        for policy in (GreedyPolicy(), RandomizedPolicy((3, 4), (0.625, 0.375), seed=42)):
-            for idle in (-1, True, 1.5):
-                with self.subTest(policy=policy, idle=idle), self.assertRaises(ValueError):
-                    policy.choose_allocation(idle)
-
     def test_simulator_rejects_allocations_outside_the_model(self):
         class InvalidPolicy(GreedyPolicy):
             def __init__(self, allocation):
@@ -121,23 +109,6 @@ class PolicyTests(unittest.TestCase):
         first = [policy.choose_allocation(10) for _ in range(100)]
         policy.reset()
         self.assertEqual(first, [policy.choose_allocation(10) for _ in range(100)])
-
-    def test_rejects_invalid_targets(self):
-        for targets in (None, 3, "3", (), [], (0,), (-1,), (True,), (1.5,),
-                        ("3",), (None,), ([],), (1, 1)):
-            with self.subTest(targets=targets), self.assertRaisesRegex(ValueError, "targets"):
-                RandomizedPolicy(targets, (1,), seed=42)
-
-    def test_rejects_invalid_probability_distributions(self):
-        for probabilities in (None, 1, "1", (), (1, 0), (0,), (-0.1,), (1.1,),
-                              (True,), ("1",), (None,), (float("nan"),),
-                              (float("inf"),), (10**400,)):
-            with self.subTest(probabilities=probabilities), self.assertRaisesRegex(ValueError, "probabilities"):
-                RandomizedPolicy((3,), probabilities, seed=42)
-        for probabilities in ((0, 0), (0.2, 0.3), (0.8, 0.8)):
-            with self.subTest(probabilities=probabilities), self.assertRaisesRegex(ValueError, "sum to 1"):
-                RandomizedPolicy((3, 4), probabilities, seed=42)
-
 
 if __name__ == "__main__":
     unittest.main()

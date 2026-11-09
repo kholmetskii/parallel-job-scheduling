@@ -11,23 +11,6 @@ class ServerPoolTests(unittest.TestCase):
             with self.subTest(speedups=speedups):
                 ServerPool(1, speedups)
 
-    def test_rejects_invalid_servers(self):
-        for servers in (0, -1, True, 1.5, "100", None):
-            with self.subTest(servers=servers), self.assertRaisesRegex(ValueError, "servers"):
-                ServerPool(servers, SPEEDUPS)
-
-    def test_rejects_invalid_speedup_inputs(self):
-        invalid = (
-            (), [], None, 5, "1,2", {}, {1, 2},
-            (0.5, 1), (2, 3), (1, 1), (1, 0), (1, -0.1), (1, 1.8, 1.7),
-            (1, 2.1), (1, 1.8, 2.7),
-            (True,), (1, True), (1, "2"), (1, None), (1, 2 + 1j),
-            (1, float("nan")), (1, float("inf")), (1, 10**400),
-        )
-        for speedups in invalid:
-            with self.subTest(speedups=speedups), self.assertRaisesRegex(ValueError, "speedups"):
-                ServerPool(1, speedups)
-
     def test_copies_speedups_from_caller(self):
         speedups = [1, 1.8, 2.5]
         pool = ServerPool(3, speedups)

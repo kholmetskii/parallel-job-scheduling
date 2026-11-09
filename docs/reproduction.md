@@ -44,7 +44,7 @@ are unavailable, or treat qualitative agreement alone as full numerical agreemen
 
 | Target | Current status | Evidence and work remaining |
 | --- | --- | --- |
-| Section II: loss-system model | Partial | [Baseline model](model.md), [simulator](../scheduling/simulator.py) and [tests](../tests/test_simulator.py) exist. Immutable [Job](../scheduling/job.py) inputs feed a [ServerPool](../scheduling/server_pool.py) that owns job execution and its private CompletionQueue; Simulator owns time and ordering. Statistics owns all counts and measurements, independently of Logger retention (8 November). All 86 tests pass; seeded baseline traces and measurements are preserved for both policies, and disabling event retention preserves every measurement. main.py derives the arrival rate from its configured load, capacity and mean job size; a check with both policies confirms that doubling mean size halves the rate, doubles execution times, and preserves allocations and blocking. Document the full parameterized model. |
+| Section II: loss-system model | Partial | [Baseline model](model.md), [simulator](../scheduling/simulator.py) and [tests](../tests/test_simulator.py) exist. Immutable [Job](../scheduling/job.py) inputs feed a [ServerPool](../scheduling/server_pool.py) that owns job execution and its private CompletionQueue; Simulator owns time and ordering. Statistics owns all counts and measurements, independently of Logger retention (8 November). All 77 tests pass; seeded baseline traces and measurements are preserved for both policies, and disabling event retention preserves every measurement. main.py derives the arrival rate from its configured load, capacity and mean job size; a check with both policies confirms that doubling mean size halves the rate, doubles execution times, and preserves allocations and blocking. Document the full parameterized model. |
 | Section III: LP (7), Proposition 1, Theorem 1 | Partial | [Allocation helpers](../scheduling/allocation.py) implement target selection and use equations (8)-(9) to calculate the selected state components and probabilities (9 November). [Sixteen allocation tests](../tests/test_allocation.py) cover boundaries, linear/light-load cases, and exact LP vertex checks: target selection for 45 configurations and probability feasibility/optimality for 60 configurations. Further mathematical checks, a reusable execution-time benchmark, and proof notes remain pending. |
 | Section IV: greedy and greedy(p*) | Partial | RandomizedPolicy now samples targets and probabilities calculated from the configured load and speedups directly in main.py (9 November). Tests check configured distributions, single-target cases, changes in load/speedups, event order, and seeded replay. Earlier checks matched six baseline event traces and summaries; the direct main.py run preserves every statistic of the previous randomized baseline. Checking all required paper settings and collecting new experiment evidence remain pending. |
 | Section V and Appendices A-E: proof arguments | Not started | Write checked notes on assumptions, proof steps, and what simulations can establish. |
@@ -143,6 +143,13 @@ Record answers and their source here when received; do not invent missing settin
 
 ## Finish the experiment infrastructure
 
+- [x] Validate configuration once at startup and trust valid internal data.
+  Completed 9 November 2026 at the user's request. main.py checks model/run
+  inputs before generating jobs; Job and internal components no longer repeat
+  those checks. Keep runtime allocation limits, arrival-time ordering and finite
+  completion checks. All 77 tests pass, including configuration checks at the
+  entry point and the existing mathematical/conservation tests. Twelve seeded
+  traces and main.py's result/output are unchanged.
 - [x] Keep configuration in main.py as plain constants and pass inputs explicitly
   to the simulator and policies. Completed 9 November 2026; remove ModelSettings
   and config.py, retain validation in the components that use each input, and

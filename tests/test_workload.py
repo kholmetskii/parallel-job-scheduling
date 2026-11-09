@@ -63,22 +63,6 @@ class WorkloadGeneratorTests(unittest.TestCase):
     def test_zero_jobs_returns_empty_workload(self):
         self.assertEqual(WorkloadGenerator(arrival_rate=80, seed=42).generate(0), [])
 
-    def test_rejects_invalid_settings(self):
-        for value in (0, -1, True, None, "1", float("inf"), float("nan"), 10**400):
-            with self.subTest(arrival_rate=value), self.assertRaises(ValueError):
-                WorkloadGenerator(arrival_rate=value)
-            with self.subTest(mean_job_size=value), self.assertRaises(ValueError):
-                WorkloadGenerator(arrival_rate=80, mean_job_size=value)
-        for seed in (True, 1.5, "42"):
-            with self.subTest(seed=seed), self.assertRaises(ValueError):
-                WorkloadGenerator(arrival_rate=80, seed=seed)
-
-    def test_rejects_invalid_job_counts(self):
-        workload = WorkloadGenerator(arrival_rate=80, seed=42)
-        for count in (-1, 1.5, True):
-            with self.subTest(count=count), self.assertRaises(ValueError):
-                workload.generate(count)
-
     def test_random_workload_runs_in_simulator_and_can_be_replayed(self):
         arrivals = WorkloadGenerator(arrival_rate=80, seed=42).generate(1000)
         result = Simulator(servers=100, speedups=SPEEDUPS).run(arrivals)

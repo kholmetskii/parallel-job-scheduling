@@ -99,8 +99,10 @@ Generalize the single-class allocation rule. The first three tasks are:
 - main.py holds plain configuration constants: server count, normalized load,
   mean size, speedups, both seeds and run lengths. ModelSettings and config.py
   were removed on 9 November. Simulator and ServerPool take server count and
-  speedups explicitly; allocation helpers validate load/curves, ServerPool
-  validates capacity, and WorkloadGenerator validates rate/mean size.
+  speedups explicitly. main.py validates configuration once before generating
+  jobs; internal components trust those settings and valid generated jobs.
+  Runtime guards retain allocation limits, arrival-time ordering and finite
+  completion times. Job is a frozen dataclass without per-object validation.
 - One application entry point: `main.py`. It generates a workload, calculates
   the randomized allocation distribution, runs Simulator directly, and prints
   blocking probability and mean execution time. Workload seed 0 and policy seed
@@ -108,7 +110,8 @@ Generalize the single-class allocation rule. The first three tasks are:
 - Comparison execution, across-run analysis, workload fingerprints, and
   ExperimentSettings were removed on 9 November at the user's request. Repeated
   experiments and saved evidence are deferred until needed for reproduction.
-- Latest check: 86 automated tests pass, including target selection checked
+- Latest check: 77 automated tests pass, including startup configuration checks,
+  target selection checked
   against exact LP vertices for 45 configurations and probability feasibility
   and optimality checked for 60 configurations, configured weighted sampling,
   model-driven policy changes, seeded replay, pool lifecycle operations,
@@ -310,6 +313,17 @@ The following dates record when later implementation and project work was comple
   `.venv/bin/python -B -m unittest discover -s tests -q`; the main.py result and
   printed output are unchanged, and twelve complete seeded traces match the
   previous implementation exactly.
+
+- [x] 9 November 2026: Centralize configuration validation once in main.py, as
+  requested by the user. Check capacity, load, mean size, derived arrival rate,
+  run lengths and speedup assumptions before generating jobs. Remove repeated
+  constructor, policy-input, job-type and ID checks; Job now contains only its
+  three immutable fields. Keep the runtime allocation, arrival-order and finite
+  completion checks, mathematical tests, conservation, warm-up, replay and
+  event-retention checks. Move configuration tests to test_main.py and remove
+  tests for the retired internal validation contracts. All 77 tests pass with
+  `.venv/bin/python -B -m unittest discover -s tests -q`; twelve complete seeded
+  traces and main.py's result/output match the previous implementation exactly.
 
 ## Later: discuss finance feasibility
 

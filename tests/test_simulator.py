@@ -87,14 +87,10 @@ class EventLoopTests(unittest.TestCase):
         self.assertEqual(result["arrivals"], 0)
         self.check_conservation(result, 6)
 
-    def test_rejects_invalid_inputs(self):
-        for servers in [0, -1, 1.5, True]:
-            with self.subTest(servers=servers), self.assertRaises(ValueError):
-                Simulator(servers=servers, speedups=SPEEDUPS).run([])
-        for arrivals in [[(-1, 1)], [(1, 1), (0, 1)], [(0, -1)],
-                         [(float("inf"), 1)], [(0, float("nan"))]]:
-            with self.subTest(arrivals=arrivals), self.assertRaises(ValueError):
-                Simulator(servers=100, speedups=SPEEDUPS).run(make_jobs(arrivals))
+    def test_arrival_times_cannot_move_backwards(self):
+        simulator = Simulator(servers=6, speedups=SPEEDUPS)
+        with self.assertRaisesRegex(ValueError, "nondecreasing"):
+            simulator.run(make_jobs([(1, 1), (0, 1)]))
 
     def test_completion_ties_use_supplied_ids_and_release_all_capacity(self):
         jobs = [Job(id=20, size=3.4, arrival_time=0),
@@ -105,15 +101,6 @@ class EventLoopTests(unittest.TestCase):
                   if event.time == 1]
         self.assertEqual(at_one, [("completed", 3), ("completed", 20), ("accepted", 10)])
         self.check_conservation(result, 6)
-
-    def test_rejects_duplicate_ids_and_non_job_inputs(self):
-        duplicate_ids = [Job(id=7, size=1, arrival_time=0),
-                         Job(id=7, size=2, arrival_time=0)]
-        with self.assertRaisesRegex(ValueError, "unique"):
-            Simulator(servers=100, speedups=SPEEDUPS).run(duplicate_ids)
-        with self.assertRaisesRegex(ValueError, "Job objects"):
-            Simulator(servers=100, speedups=SPEEDUPS).run([(0, 1)])
-
 
 class ObjectModelTests(unittest.TestCase):
     def test_shared_job_has_independent_allocations_and_completion_times(self):
@@ -131,19 +118,6 @@ class ObjectModelTests(unittest.TestCase):
         for field in ("id", "size", "arrival_time"):
             with self.subTest(field=field), self.assertRaises(FrozenInstanceError):
                 setattr(job, field, 10)
-
-    def test_job_rejects_invalid_input_data(self):
-        cases = {
-            "id": (0, -1, True, 1.5, None, "1"),
-            "size": (-1, True, None, "1", float("inf"), float("nan"), 10**400),
-            "arrival_time": (-1, True, None, "1", float("inf"), float("nan"), 10**400),
-        }
-        for field, values in cases.items():
-            for value in values:
-                inputs = {"id": 1, "size": 1, "arrival_time": 0}
-                inputs[field] = value
-                with self.subTest(field=field, value=value), self.assertRaises(ValueError):
-                    Job(**inputs)
 
     def test_nonfinite_completion_is_rejected_before_reserving_servers(self):
         simulator = Simulator(servers=1, speedups=SPEEDUPS)
@@ -225,11 +199,6 @@ class ConfigurableSpeedupTests(unittest.TestCase):
             simulator.run(make_jobs([(0, 1)]))
         self.assertEqual(simulator.statistics.total_arrivals, 0)
         self.assertEqual(simulator.pool.idle_servers, 6)
-
-    def test_simulator_rejects_invalid_curves(self):
-        for speedups in (None, (), "1,2", (1, 1), (1, 2.1), (1, float("nan"))):
-            with self.subTest(speedups=speedups), self.assertRaises(ValueError):
-                Simulator(speedups=speedups, servers=100)
 
     def test_simulator_copies_the_callers_curve(self):
         speedups = [1, 2, 3]

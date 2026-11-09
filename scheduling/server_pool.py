@@ -2,7 +2,6 @@
 
 import math
 
-from scheduling.allocation import validate_speedups
 from scheduling.completion_queue import CompletionQueue
 from scheduling.job import Job
 
@@ -15,10 +14,8 @@ class ServerPool:
         servers: int,
         speedups: tuple[float, ...] | list[float],
     ) -> None:
-        if type(servers) is not int or servers < 1:
-            raise ValueError("servers must be a positive integer")
         self.total_servers = servers
-        self.speedups = validate_speedups(speedups)
+        self.speedups = tuple(speedups)
         self.max_servers_per_job = len(self.speedups)
         self._idle_servers = self.total_servers
         self._completion_queue = CompletionQueue()
@@ -35,7 +32,7 @@ class ServerPool:
         """Reserve servers and schedule completion, or return None for a blocked job.
 
         A zero allocation is valid only when all servers are occupied. Job IDs
-        are unique within the input workload, as checked by Simulator.run().
+        are supplied uniquely by the workload generator.
         """
         if (type(allocated_servers) is not int
                 or not 0 <= allocated_servers <= min(self.max_servers_per_job, self.idle_servers)

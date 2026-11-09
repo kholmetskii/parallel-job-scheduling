@@ -2,7 +2,6 @@
 
 from typing import Iterable, Literal
 
-from scheduling.allocation import validate_speedups
 from scheduling.job import Job
 from scheduling.logger import Logger
 from scheduling.policies import GreedyPolicy, RandomizedPolicy
@@ -27,7 +26,7 @@ class Simulator:
         record_events: bool = True,
     ):
         self._servers = servers
-        self._speedups = validate_speedups(speedups)
+        self._speedups = tuple(speedups)
         self._record_events = record_events
         self.policy = (GreedyPolicy(max_servers=len(self._speedups))
                        if policy is None else policy)
@@ -77,18 +76,12 @@ class Simulator:
         Process the first warmup_arrivals normally but exclude them from
         statistics. All event-log entries and top-level counts cover the run.
         Reset the policy's random stream along with the simulator state.
-        Job IDs must be unique within the run; warm-up follows arrival order.
+        Callers supply valid jobs with unique IDs; warm-up follows arrival order.
         The returned event log contains immutable Event objects.
         With record_events=False, the log is empty and measurements are unchanged.
         """
         self._reset(warmup_arrivals)
-        seen_ids = set()
         for job in arrivals:
-            if not isinstance(job, Job):
-                raise ValueError("arrivals must contain Job objects")
-            if job.id in seen_ids:
-                raise ValueError("Job IDs must be unique within a run")
-            seen_ids.add(job.id)
             self.handle_arrival(job)
 
         while self.pool.next_completion_time() is not None:

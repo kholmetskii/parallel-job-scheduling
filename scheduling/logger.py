@@ -9,8 +9,6 @@ class Logger:
     """Create and store immutable event snapshots."""
 
     def __init__(self, enabled: bool = True) -> None:
-        if type(enabled) is not bool:
-            raise ValueError("enabled must be a boolean")
         self.enabled = enabled
         self.events: list[Event] = []
 
