@@ -2,16 +2,12 @@
 
 from typing import Iterable, Literal
 
-from scheduling.config import ModelSettings
+from scheduling.allocation import validate_speedups
 from scheduling.job import Job
 from scheduling.logger import Logger
 from scheduling.policies import GreedyPolicy, RandomizedPolicy
 from scheduling.server_pool import ServerPool
 from scheduling.statistics import Statistics
-
-
-# Default curve for direct simulator construction.
-SPEEDUPS = ModelSettings().speedups
 
 
 class Simulator:
@@ -24,20 +20,21 @@ class Simulator:
 
     def __init__(
         self,
-        servers: int = 100,
+        servers: int,
         policy: GreedyPolicy | RandomizedPolicy | None = None,
-        speedups: tuple[float, ...] | list[float] = SPEEDUPS,
         *,
+        speedups: tuple[float, ...] | list[float],
         record_events: bool = True,
     ):
-        self._model = ModelSettings(servers=servers, speedups=speedups)
+        self._servers = servers
+        self._speedups = validate_speedups(speedups)
         self._record_events = record_events
-        self.policy = (GreedyPolicy(max_servers=len(self._model.speedups))
+        self.policy = (GreedyPolicy(max_servers=len(self._speedups))
                        if policy is None else policy)
         self._reset()
 
     def _reset(self, warmup_arrivals: int = 0) -> None:
-        self.pool = ServerPool(self._model.servers, self._model.speedups)
+        self.pool = ServerPool(self._servers, self._speedups)
         self.statistics = Statistics(warmup_arrivals, self.pool.max_servers_per_job)
         self.current_time = 0.0
         self.logger = Logger(enabled=self._record_events)

@@ -3,6 +3,9 @@
 from scheduling.job import Job
 
 
+SPEEDUPS = (1, 1.8, 2.5, 3, 3.4)
+
+
 def make_jobs(arrivals: list[tuple[float, float]]) -> list[Job]:
     """Build jobs from concise (arrival time, size) test examples."""
     return [Job(id=index, size=size, arrival_time=time)

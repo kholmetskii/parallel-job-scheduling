@@ -4,6 +4,7 @@ import unittest
 
 from scheduling.simulator import Simulator
 from scheduling.workload import WorkloadGenerator
+from tests.fixtures import SPEEDUPS
 
 
 class WorkloadGeneratorTests(unittest.TestCase):
@@ -63,7 +64,7 @@ class WorkloadGeneratorTests(unittest.TestCase):
         self.assertEqual(WorkloadGenerator(arrival_rate=80, seed=42).generate(0), [])
 
     def test_rejects_invalid_settings(self):
-        for value in (0, -1, float("inf"), float("nan")):
+        for value in (0, -1, True, None, "1", float("inf"), float("nan"), 10**400):
             with self.subTest(arrival_rate=value), self.assertRaises(ValueError):
                 WorkloadGenerator(arrival_rate=value)
             with self.subTest(mean_job_size=value), self.assertRaises(ValueError):
@@ -80,13 +81,13 @@ class WorkloadGeneratorTests(unittest.TestCase):
 
     def test_random_workload_runs_in_simulator_and_can_be_replayed(self):
         arrivals = WorkloadGenerator(arrival_rate=80, seed=42).generate(1000)
-        result = Simulator(servers=100).run(arrivals)
+        result = Simulator(servers=100, speedups=SPEEDUPS).run(arrivals)
         self.assertEqual(result["arrivals"], 1000)
         self.assertEqual(result["accepted"] + result["rejected"], 1000)
         self.assertGreater(result["accepted"], 0)
         self.assertEqual(result["completed"], result["accepted"])
         self.assertEqual(result["final_idle_servers"], 100)
-        self.assertEqual(result, Simulator(servers=100).run(arrivals))
+        self.assertEqual(result, Simulator(servers=100, speedups=SPEEDUPS).run(arrivals))
 
 
 if __name__ == "__main__":

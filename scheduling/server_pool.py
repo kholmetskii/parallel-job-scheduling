@@ -2,12 +2,9 @@
 
 import math
 
+from scheduling.allocation import validate_speedups
 from scheduling.completion_queue import CompletionQueue
-from scheduling.config import ModelSettings
 from scheduling.job import Job
-
-
-_DEFAULT_SPEEDUPS = ModelSettings().speedups
 
 
 class ServerPool:
@@ -16,11 +13,12 @@ class ServerPool:
     def __init__(
         self,
         servers: int,
-        speedups: tuple[float, ...] | list[float] = _DEFAULT_SPEEDUPS,
+        speedups: tuple[float, ...] | list[float],
     ) -> None:
-        model = ModelSettings(servers=servers, speedups=speedups)
-        self.total_servers = model.servers
-        self.speedups = model.speedups
+        if type(servers) is not int or servers < 1:
+            raise ValueError("servers must be a positive integer")
+        self.total_servers = servers
+        self.speedups = validate_speedups(speedups)
         self.max_servers_per_job = len(self.speedups)
         self._idle_servers = self.total_servers
         self._completion_queue = CompletionQueue()

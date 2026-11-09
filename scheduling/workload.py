@@ -15,10 +15,13 @@ class WorkloadGenerator:
         mean_job_size: float = 1.0,
         seed: int | None = None,
     ) -> None:
-        if not math.isfinite(arrival_rate) or arrival_rate <= 0:
-            raise ValueError("arrival_rate must be finite and positive")
-        if not math.isfinite(mean_job_size) or mean_job_size <= 0:
-            raise ValueError("mean_job_size must be finite and positive")
+        for name, value in (("arrival_rate", arrival_rate), ("mean_job_size", mean_job_size)):
+            try:
+                valid = type(value) in (int, float) and math.isfinite(value) and value > 0
+            except OverflowError:
+                valid = False
+            if not valid:
+                raise ValueError(f"{name} must be finite and positive")
         if seed is not None and type(seed) is not int:
             raise ValueError("seed must be an integer or None")
         self.arrival_rate = arrival_rate

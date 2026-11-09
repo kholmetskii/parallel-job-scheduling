@@ -1,6 +1,6 @@
 # Paper reproduction checklist
 
-Updated: 8 November 2026.
+Updated: 9 November 2026.
 
 Source: Mukhopadhyay et al., *On Optimal Server Allocation for a Loss System
 With Moldable Jobs*, IEEE Transactions on Networking, 34, 384-397 (2026).
@@ -44,9 +44,9 @@ are unavailable, or treat qualitative agreement alone as full numerical agreemen
 
 | Target | Current status | Evidence and work remaining |
 | --- | --- | --- |
-| Section II: loss-system model | Partial | [Baseline model](model.md), [simulator](../scheduling/simulator.py) and [tests](../tests/test_simulator.py) exist. Immutable [Job](../scheduling/job.py) inputs feed a [ServerPool](../scheduling/server_pool.py) that owns job execution and its private CompletionQueue; Simulator owns time and ordering. Statistics owns all counts and measurements, independently of Logger retention (8 November). All 92 tests pass; 14 baseline cases preserve prior traces and measurements with both policies, and disabling event retention preserves every measurement. `ModelSettings.arrival_rate` now derives the rate used by workload generation and metadata; a check with both policies confirms that doubling mean size halves the rate, doubles execution times, and preserves allocations and blocking. Document the full parameterized model. |
-| Section III: LP (7), Proposition 1, Theorem 1 | Partial | The current 3/4 mixture is implemented manually. General formulas and independent mathematical checks are pending. |
-| Section IV: greedy and greedy(p*) | Partial | Baseline behavior is checked by tests and main.py; tests independently check conservation and event order. The event recorder only logs snapshots (8 November). Calculate p* for all required cases and collect new experiment evidence. |
+| Section II: loss-system model | Partial | [Baseline model](model.md), [simulator](../scheduling/simulator.py) and [tests](../tests/test_simulator.py) exist. Immutable [Job](../scheduling/job.py) inputs feed a [ServerPool](../scheduling/server_pool.py) that owns job execution and its private CompletionQueue; Simulator owns time and ordering. Statistics owns all counts and measurements, independently of Logger retention (8 November). All 86 tests pass; seeded baseline traces and measurements are preserved for both policies, and disabling event retention preserves every measurement. main.py derives the arrival rate from its configured load, capacity and mean job size; a check with both policies confirms that doubling mean size halves the rate, doubles execution times, and preserves allocations and blocking. Document the full parameterized model. |
+| Section III: LP (7), Proposition 1, Theorem 1 | Partial | [Allocation helpers](../scheduling/allocation.py) implement target selection and use equations (8)-(9) to calculate the selected state components and probabilities (9 November). [Sixteen allocation tests](../tests/test_allocation.py) cover boundaries, linear/light-load cases, and exact LP vertex checks: target selection for 45 configurations and probability feasibility/optimality for 60 configurations. Further mathematical checks, a reusable execution-time benchmark, and proof notes remain pending. |
+| Section IV: greedy and greedy(p*) | Partial | RandomizedPolicy now samples targets and probabilities calculated from the configured load and speedups directly in main.py (9 November). Tests check configured distributions, single-target cases, changes in load/speedups, event order, and seeded replay. Earlier checks matched six baseline event traces and summaries; the direct main.py run preserves every statistic of the previous randomized baseline. Checking all required paper settings and collecting new experiment evidence remain pending. |
 | Section V and Appendices A-E: proof arguments | Not started | Write checked notes on assumptions, proof steps, and what simulations can establish. |
 | Figure 2(a): blocking probability | Not started | Earlier pilot outputs were removed on 8 November. All published curves and sizes need new saved evidence. |
 | Figure 2(b): accepted-job execution time | Not started | Earlier pilot outputs were removed on 8 November. All published curves and sizes need new saved evidence. |
@@ -62,12 +62,14 @@ links to result reports as each experiment stage starts.
 Section VII reports 100 repetitions, each simulating the first 5 million job
 arrivals, with maximum parallelism 5. All listed job-size distributions have mean 1.
 Earlier ten-seed pilot outputs were removed on 8 November at the user's request.
-The current main.py comparison uses one workload seed and prints its results.
+The current main.py runs the randomized policy once and prints its results.
+Comparison and repeated-run infrastructure are deferred at the user's request
+(9 November 2026); they will be needed when collecting reproduction evidence.
 
 Arrival rate is `n * lambda(n)`, with `lambda(n) = 1 - beta * n**(-alpha)`.
 
 For mean inherent job size `m`, the implementation uses
-`ModelSettings.arrival_rate = normalized_load * servers / mean_job_size`.
+`arrival_rate = NORMALIZED_LOAD * SERVERS / MEAN_JOB_SIZE` in main.py.
 This reduces to the paper's `n * lambda(n)` when `m = 1`, as in its experiments.
 The traffic parameters are:
 
@@ -110,14 +112,22 @@ Record answers and their source here when received; do not invent missing settin
 
 ## Generalize the single-class implementation
 
-- [ ] Derive arrival rate from normalized load, server count, and mean job size.
-- [ ] Find the optimal single target or two adjacent targets in `scheduling/allocation.py`.
-- [ ] Calculate their probabilities from the model settings.
-- [ ] Make RandomizedPolicy use the calculated targets and probabilities.
+- [x] Derive arrival rate from normalized load, server count, and mean job size.
+  Completed 8 November 2026; the formula is now directly in main.py (9 November).
+- [x] Find the optimal single target or two adjacent targets in `scheduling/allocation.py`.
+  Completed 9 November 2026; target selection matches exact LP minima in 45 cases.
+- [x] Calculate their probabilities from the model settings.
+  Completed 9 November 2026; feasibility and LP optimality checked in 60 cases.
+- [x] Make RandomizedPolicy use the calculated targets and probabilities.
+  Completed 9 November 2026; model changes determine the experiment's distribution.
 - [ ] Calculate the theoretical mean execution-time benchmark.
 - [ ] Check the known case: targets 3/4, probabilities 0.625/0.375, benchmark 0.375.
-- [ ] Test single-target cases, boundary loads, linear speedups, and invalid inputs.
-- [ ] Recheck the 100-server baseline after generalizing the policy; earlier saved outputs have been removed.
+- [x] Test single-target cases, boundary loads, linear speedups, and invalid inputs.
+  Completed 9 November 2026; allocation, policy, and experiment tests pass.
+- [x] Recheck the 100-server baseline after generalizing the policy; earlier saved outputs have been removed.
+  Completed 9 November 2026; six event traces/summaries and main.py output match
+  the implementation immediately before policy integration. New published-result
+  reproduction evidence remains pending.
 
 ## Check the mathematical results
 
@@ -133,14 +143,23 @@ Record answers and their source here when received; do not invent missing settin
 
 ## Finish the experiment infrastructure
 
-- [x] Consolidate single-run logic in `scheduling/experiments.py`. Completed 8 November 2026.
-- [x] Consolidate across-run summaries and comparisons in `scheduling/analysis.py`;
-  keep per-run measurements in Statistics. Completed 8 November 2026.
+- [x] Keep configuration in main.py as plain constants and pass inputs explicitly
+  to the simulator and policies. Completed 9 November 2026; remove ModelSettings
+  and config.py, retain validation in the components that use each input, and
+  pass all 86 tests. main.py output and all baseline statistics are unchanged;
+  twelve complete seeded traces match the previous implementation.
+- [x] Run one seeded simulation directly through main.py. Completed 9 November 2026.
+  At the user's request, remove experiments.py (including run_trial/run_policy),
+  analysis.py, workload fingerprinting and ExperimentSettings. Keep both policy
+  classes, the allocation calculations and the core simulator/statistics checks.
+  All 87 remaining tests pass; the direct randomized run preserves every
+  statistic from the previous baseline. The dated history remains in plan.md.
 - [x] Keep whole-run counts and measured allocation frequencies in Statistics,
-  independent of event retention; experiment helpers consume its summaries.
+  independent of event retention; main.py consumes its summaries.
   Check 92 tests and 14 comparison cases, including `record_events=False`.
   Completed 8 November 2026.
-- [ ] Add repeated experiment execution through main.py using the configured cases and seeds.
+- [ ] When reproduction runs begin, add repeated execution and across-run analysis
+  through main.py using the required cases and seeds.
 - [ ] Save actual settings, both random seeds, source revision/fingerprints, run
   lengths, counts, and per-run metrics with each experiment.
 - [ ] Generate report descriptions and chart labels from saved settings.

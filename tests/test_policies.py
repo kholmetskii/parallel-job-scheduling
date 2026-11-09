@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from scheduling.policies import GreedyPolicy, RandomizedPolicy
 from scheduling.simulator import Simulator
-from tests.fixtures import make_jobs
+from tests.fixtures import SPEEDUPS, make_jobs
 
 
 class PolicyTests(unittest.TestCase):
@@ -15,33 +15,33 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(GreedyPolicy(max_servers=2).choose_allocation(10), 2)
 
     def test_random_target_switches_at_the_probability_boundary(self):
-        policy = RandomizedPolicy(seed=42)
+        policy = RandomizedPolicy((3, 4), (0.625, 0.375), seed=42)
         with patch.object(policy.rng, "random", side_effect=[0.0, 0.624999, 0.625, 0.999]):
             self.assertEqual([policy.choose_allocation(10) for _ in range(4)], [3, 3, 4, 4])
 
     def test_random_targets_are_capped_by_idle_capacity(self):
-        policy = RandomizedPolicy(seed=42)
+        policy = RandomizedPolicy((3, 4), (0.625, 0.375), seed=42)
         for draw, target in ((0.1, 3), (0.9, 4)):
             with patch.object(policy.rng, "random", return_value=draw):
                 for idle in range(6):
                     self.assertEqual(policy.choose_allocation(idle), min(target, idle))
 
     def test_blocked_arrivals_also_consume_a_target_draw(self):
-        policy = RandomizedPolicy(seed=42)
+        policy = RandomizedPolicy((3, 4), (0.625, 0.375), seed=42)
         with patch.object(policy.rng, "random", side_effect=[0.1, 0.9]) as draw:
             self.assertEqual(policy.choose_allocation(0), 0)
             self.assertEqual(policy.choose_allocation(10), 4)
             self.assertEqual(draw.call_count, 2)
 
-    def test_target_frequencies_match_the_fixed_probability(self):
-        policy = RandomizedPolicy(seed=42)
+    def test_target_frequencies_match_the_configured_probability(self):
+        policy = RandomizedPolicy((3, 4), (0.625, 0.375), seed=42)
         targets = [policy.choose_allocation(10) for _ in range(10_000)]
         self.assertEqual(set(targets), {3, 4})
         self.assertAlmostEqual(targets.count(3) / len(targets), 0.625, delta=0.02)
 
     def test_policy_uses_local_random_state(self):
         state = random.getstate()
-        policy = RandomizedPolicy(seed=42)
+        policy = RandomizedPolicy((3, 4), (0.625, 0.375), seed=42)
         for _ in range(100):
             policy.choose_allocation(10)
         policy.reset()
@@ -49,16 +49,16 @@ class PolicyTests(unittest.TestCase):
 
     def test_reused_simulator_restarts_the_seeded_policy(self):
         arrivals = make_jobs([(time, 3.0) for time in range(20)])
-        simulator = Simulator(servers=100, policy=RandomizedPolicy(seed=42))
+        simulator = Simulator(servers=100, policy=RandomizedPolicy((3, 4), (0.625, 0.375), seed=42), speedups=SPEEDUPS)
         first = simulator.run(arrivals)
         self.assertEqual(first, simulator.run(arrivals))
-        self.assertEqual(first, Simulator(100, RandomizedPolicy(seed=42)).run(arrivals))
-        self.assertNotEqual(first, Simulator(100, RandomizedPolicy(seed=43)).run(arrivals))
+        self.assertEqual(first, Simulator(100, RandomizedPolicy((3, 4), (0.625, 0.375), seed=42), speedups=SPEEDUPS).run(arrivals))
+        self.assertNotEqual(first, Simulator(100, RandomizedPolicy((3, 4), (0.625, 0.375), seed=43), speedups=SPEEDUPS).run(arrivals))
 
     def test_partial_allocation_rejection_and_completion_order(self):
-        policy = RandomizedPolicy(seed=42)
+        policy = RandomizedPolicy((3, 4), (0.625, 0.375), seed=42)
         with patch.object(policy.rng, "random", side_effect=[0.1, 0.9, 0.1, 0.9]):
-            result = Simulator(5, policy).run(make_jobs([(0, 2.5), (0.1, 1.8), (0.2, 1), (1, 2.5)]))
+            result = Simulator(5, policy, speedups=SPEEDUPS).run(make_jobs([(0, 2.5), (0.1, 1.8), (0.2, 1), (1, 2.5)]))
         events = result["events"]
         self.assertEqual([(e.job_id, e.allocated_servers)
                           for e in events if e.kind == "accepted"], [(1, 3), (2, 2), (4, 3)])
@@ -74,8 +74,8 @@ class PolicyTests(unittest.TestCase):
                 GreedyPolicy(value)
         for value in (True, "42", 1.5):
             with self.subTest(seed=value), self.assertRaises(ValueError):
-                RandomizedPolicy(seed=value)
-        for policy in (GreedyPolicy(), RandomizedPolicy(seed=42)):
+                RandomizedPolicy((3, 4), (0.625, 0.375), seed=value)
+        for policy in (GreedyPolicy(), RandomizedPolicy((3, 4), (0.625, 0.375), seed=42)):
             for idle in (-1, True, 1.5):
                 with self.subTest(policy=policy, idle=idle), self.assertRaises(ValueError):
                     policy.choose_allocation(idle)
@@ -91,7 +91,52 @@ class PolicyTests(unittest.TestCase):
 
         for allocation in (-1, 0, True, 6):
             with self.subTest(allocation=allocation), self.assertRaises(ValueError):
-                Simulator(servers=5, policy=InvalidPolicy(allocation)).run(make_jobs([(0, 1)]))
+                Simulator(servers=5, policy=InvalidPolicy(allocation), speedups=SPEEDUPS).run(make_jobs([(0, 1)]))
+
+    def test_three_target_distribution_uses_its_configured_boundaries(self):
+        policy = RandomizedPolicy((1, 2, 5), (0.2, 0.3, 0.5), seed=42)
+        draws = (0.0, 0.199999, 0.2, 0.499999, 0.5, 0.999)
+        with patch.object(policy.rng, "random", side_effect=draws) as draw:
+            self.assertEqual([policy.choose_allocation(10) for _ in draws], [1, 1, 2, 2, 5, 5])
+            self.assertEqual(draw.call_count, len(draws))
+
+    def test_single_and_zero_weight_targets_still_consume_one_draw(self):
+        for targets, probabilities, expected in (
+            ((5,), (1,), 5), ((1, 3, 5), (0, 1, 0), 3),
+        ):
+            with self.subTest(targets=targets):
+                policy = RandomizedPolicy(targets, probabilities, seed=42)
+                with patch.object(policy.rng, "random", side_effect=(0.0, 0.9, 0.5)) as draw:
+                    self.assertEqual(policy.choose_allocation(0), 0)
+                    self.assertEqual(policy.choose_allocation(10), expected)
+                    self.assertEqual(policy.choose_allocation(2), 2)
+                    self.assertEqual(draw.call_count, 3)
+
+    def test_distribution_copies_caller_inputs_and_replays_after_reset(self):
+        targets, probabilities = [1, 4], [0.25, 0.75]
+        policy = RandomizedPolicy(targets, probabilities, seed=42)
+        targets[0], probabilities[0] = 9, 1
+        self.assertEqual(policy.targets, (1, 4))
+        self.assertEqual(policy.probabilities, (0.25, 0.75))
+        first = [policy.choose_allocation(10) for _ in range(100)]
+        policy.reset()
+        self.assertEqual(first, [policy.choose_allocation(10) for _ in range(100)])
+
+    def test_rejects_invalid_targets(self):
+        for targets in (None, 3, "3", (), [], (0,), (-1,), (True,), (1.5,),
+                        ("3",), (None,), ([],), (1, 1)):
+            with self.subTest(targets=targets), self.assertRaisesRegex(ValueError, "targets"):
+                RandomizedPolicy(targets, (1,), seed=42)
+
+    def test_rejects_invalid_probability_distributions(self):
+        for probabilities in (None, 1, "1", (), (1, 0), (0,), (-0.1,), (1.1,),
+                              (True,), ("1",), (None,), (float("nan"),),
+                              (float("inf"),), (10**400,)):
+            with self.subTest(probabilities=probabilities), self.assertRaisesRegex(ValueError, "probabilities"):
+                RandomizedPolicy((3,), probabilities, seed=42)
+        for probabilities in ((0, 0), (0.2, 0.3), (0.8, 0.8)):
+            with self.subTest(probabilities=probabilities), self.assertRaisesRegex(ValueError, "sum to 1"):
+                RandomizedPolicy((3, 4), probabilities, seed=42)
 
 
 if __name__ == "__main__":

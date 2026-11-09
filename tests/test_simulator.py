@@ -1,11 +1,13 @@
 import unittest
 from dataclasses import FrozenInstanceError
+from unittest.mock import patch
 
-from scheduling.config import ModelSettings
+from scheduling.allocation import optimal_allocation_probabilities, optimal_allocation_targets
 from scheduling.job import Job
-from scheduling.policies import GreedyPolicy
+from scheduling.policies import GreedyPolicy, RandomizedPolicy
 from scheduling.simulator import Simulator
-from tests.fixtures import EXAMPLE_ARRIVALS, make_jobs
+from scheduling.workload import WorkloadGenerator
+from tests.fixtures import SPEEDUPS, EXAMPLE_ARRIVALS, make_jobs
 
 
 class EventLoopTests(unittest.TestCase):
@@ -39,7 +41,7 @@ class EventLoopTests(unittest.TestCase):
         self.assertEqual(result["final_idle_servers"], servers)
 
     def test_hand_worked_six_server_trace(self):
-        result = Simulator(servers=6).run(EXAMPLE_ARRIVALS)
+        result = Simulator(servers=6, speedups=SPEEDUPS).run(EXAMPLE_ARRIVALS)
         expected = [
             (0.0, "accepted", 1, 5, 1),
             (0.2, "accepted", 2, 1, 0),
@@ -59,7 +61,7 @@ class EventLoopTests(unittest.TestCase):
         self.check_conservation(result, 6)
 
     def test_all_simultaneous_completions_precede_arrival(self):
-        result = Simulator(servers=6).run(make_jobs([(0, 3.4), (0, 1), (1, 3.4)]))
+        result = Simulator(servers=6, speedups=SPEEDUPS).run(make_jobs([(0, 3.4), (0, 1), (1, 3.4)]))
         at_one = [(e.kind, e.job_id, e.idle_servers)
                   for e in result["events"] if e.time == 1]
         self.assertEqual(at_one, [("completed", 1, 5), ("completed", 2, 6), ("accepted", 3, 1)])
@@ -67,20 +69,20 @@ class EventLoopTests(unittest.TestCase):
         self.check_conservation(result, 6)
 
     def test_simultaneous_arrivals_follow_input_order(self):
-        result = Simulator(servers=6).run(make_jobs([(0, 3.4), (0, 1), (0, 2)]))
+        result = Simulator(servers=6, speedups=SPEEDUPS).run(make_jobs([(0, 3.4), (0, 1), (0, 2)]))
         arrivals = [e for e in result["events"] if e.kind != "completed"]
         self.assertEqual([(e.kind, e.job_id) for e in arrivals],
                          [("accepted", 1), ("accepted", 2), ("rejected", 3)])
         self.check_conservation(result, 6)
 
     def test_one_server_rejection_and_release(self):
-        result = Simulator(servers=1).run(make_jobs([(0, 2), (1, 1), (2, 1)]))
+        result = Simulator(servers=1, speedups=SPEEDUPS).run(make_jobs([(0, 2), (1, 1), (2, 1)]))
         self.assertEqual((result["accepted"], result["rejected"], result["completed"]), (2, 1, 2))
         self.assertEqual(result["events"][-1].time, 3)
         self.check_conservation(result, 1)
 
     def test_empty_input(self):
-        result = Simulator(servers=6).run([])
+        result = Simulator(servers=6, speedups=SPEEDUPS).run([])
         self.assertEqual(result["events"], [])
         self.assertEqual(result["arrivals"], 0)
         self.check_conservation(result, 6)
@@ -88,17 +90,17 @@ class EventLoopTests(unittest.TestCase):
     def test_rejects_invalid_inputs(self):
         for servers in [0, -1, 1.5, True]:
             with self.subTest(servers=servers), self.assertRaises(ValueError):
-                Simulator(servers=servers).run([])
+                Simulator(servers=servers, speedups=SPEEDUPS).run([])
         for arrivals in [[(-1, 1)], [(1, 1), (0, 1)], [(0, -1)],
                          [(float("inf"), 1)], [(0, float("nan"))]]:
             with self.subTest(arrivals=arrivals), self.assertRaises(ValueError):
-                Simulator().run(make_jobs(arrivals))
+                Simulator(servers=100, speedups=SPEEDUPS).run(make_jobs(arrivals))
 
     def test_completion_ties_use_supplied_ids_and_release_all_capacity(self):
         jobs = [Job(id=20, size=3.4, arrival_time=0),
                 Job(id=3, size=1, arrival_time=0),
                 Job(id=10, size=3.4, arrival_time=1)]
-        result = Simulator(servers=6).run(jobs)
+        result = Simulator(servers=6, speedups=SPEEDUPS).run(jobs)
         at_one = [(event.kind, event.job_id) for event in result["events"]
                   if event.time == 1]
         self.assertEqual(at_one, [("completed", 3), ("completed", 20), ("accepted", 10)])
@@ -108,17 +110,17 @@ class EventLoopTests(unittest.TestCase):
         duplicate_ids = [Job(id=7, size=1, arrival_time=0),
                          Job(id=7, size=2, arrival_time=0)]
         with self.assertRaisesRegex(ValueError, "unique"):
-            Simulator().run(duplicate_ids)
+            Simulator(servers=100, speedups=SPEEDUPS).run(duplicate_ids)
         with self.assertRaisesRegex(ValueError, "Job objects"):
-            Simulator().run([(0, 1)])
+            Simulator(servers=100, speedups=SPEEDUPS).run([(0, 1)])
 
 
 class ObjectModelTests(unittest.TestCase):
     def test_shared_job_has_independent_allocations_and_completion_times(self):
         job = Job(id=7, size=5, arrival_time=2)
         jobs = [job]
-        fast = Simulator(servers=3).run(jobs)
-        slow = Simulator(servers=1).run(jobs)
+        fast = Simulator(servers=3, speedups=SPEEDUPS).run(jobs)
+        slow = Simulator(servers=1, speedups=SPEEDUPS).run(jobs)
         self.assertEqual((fast["events"][0].allocated_servers, fast["events"][-1].time), (3, 4))
         self.assertEqual((slow["events"][0].allocated_servers, slow["events"][-1].time), (1, 7))
         self.assertEqual((fast["final_idle_servers"], slow["final_idle_servers"]), (3, 1))
@@ -144,7 +146,7 @@ class ObjectModelTests(unittest.TestCase):
                     Job(**inputs)
 
     def test_nonfinite_completion_is_rejected_before_reserving_servers(self):
-        simulator = Simulator(servers=1)
+        simulator = Simulator(servers=1, speedups=SPEEDUPS)
         job = Job(id=1, size=1e308, arrival_time=1e308)
         with self.assertRaisesRegex(ValueError, "Completion time"):
             simulator.run([job])
@@ -152,7 +154,7 @@ class ObjectModelTests(unittest.TestCase):
         self.assertEqual(simulator.statistics.total_accepted, 0)
 
     def test_reusing_simulator_starts_fresh_and_preserves_previous_result(self):
-        simulator = Simulator(servers=6)
+        simulator = Simulator(servers=6, speedups=SPEEDUPS)
         first = simulator.run(EXAMPLE_ARRIVALS)
         first_events = list(first["events"])
         second = simulator.run(make_jobs([(0, 3.4)]))
@@ -165,8 +167,8 @@ class ObjectModelTests(unittest.TestCase):
         self.assertEqual((first["arrivals"], first["accepted"], first["completed"]), (4, 3, 3))
 
     def test_simulator_instances_have_independent_state(self):
-        first = Simulator(servers=6)
-        second = Simulator(servers=1)
+        first = Simulator(servers=6, speedups=SPEEDUPS)
+        second = Simulator(servers=1, speedups=SPEEDUPS)
         first.run(EXAMPLE_ARRIVALS)
         second.run(make_jobs([(0, 4), (1, 1)]))
         self.assertEqual((first.current_time, first.statistics.total_accepted,
@@ -179,8 +181,7 @@ class ObjectModelTests(unittest.TestCase):
 
 class ConfigurableSpeedupTests(unittest.TestCase):
     def test_custom_curve_controls_allocation_completion_and_ties(self):
-        model = ModelSettings(servers=5, speedups=(1, 2, 3))
-        simulator = Simulator(servers=model.servers, speedups=model.speedups)
+        simulator = Simulator(servers=5, speedups=(1, 2, 3))
         result = simulator.run(make_jobs([(0, 3), (0, 2), (0, 1), (1, 3)]))
         self.assertEqual(simulator.pool.max_servers_per_job, 3)
         self.assertEqual(simulator.policy.max_servers, 3)
@@ -228,7 +229,7 @@ class ConfigurableSpeedupTests(unittest.TestCase):
     def test_simulator_rejects_invalid_curves(self):
         for speedups in (None, (), "1,2", (1, 1), (1, 2.1), (1, float("nan"))):
             with self.subTest(speedups=speedups), self.assertRaises(ValueError):
-                Simulator(speedups=speedups)
+                Simulator(speedups=speedups, servers=100)
 
     def test_simulator_copies_the_callers_curve(self):
         speedups = [1, 2, 3]
@@ -236,6 +237,64 @@ class ConfigurableSpeedupTests(unittest.TestCase):
         speedups[2] = 100
         self.assertEqual(simulator.pool.speedups, (1, 2, 3))
         self.assertEqual(simulator.run(make_jobs([(0, 6)]))["statistics"]["mean_execution_time"], 2)
+
+
+class RandomizedModelTests(unittest.TestCase):
+    def test_randomized_single_target_cases_follow_the_supplied_model(self):
+        jobs = make_jobs([(10 * index, 1) for index in range(10)])
+        cases = (
+            (0.8, (1, 2, 3), 3),
+            (0.5, (1, 1.8, 2.5, 3, 3.4), 5),
+            (0.75, (1, 1.8, 2.5, 3, 3.4), 4),
+        )
+        for load, speedups, target in cases:
+            with self.subTest(load=load, speedups=speedups):
+                targets = optimal_allocation_targets(load, speedups)
+                probabilities = optimal_allocation_probabilities(load, speedups)
+                policy = RandomizedPolicy(targets, probabilities, seed=10000)
+                with patch.object(policy.rng, "random", return_value=0.9) as draw:
+                    result = Simulator(10, policy, speedups=speedups).run(
+                        jobs, warmup_arrivals=2,
+                    )
+                    self.assertEqual(draw.call_count, len(jobs))
+                self.assertEqual(result["statistics"]["allocations"][str(target)], 8)
+                self.assertEqual(result["rejected"], 0)
+                self.assertAlmostEqual(result["statistics"]["mean_execution_time"],
+                                       1 / speedups[target - 1])
+
+    def test_randomized_targets_and_weights_change_with_the_model(self):
+        jobs = make_jobs([(10 * index, 1) for index in range(10)])
+        cases = (
+            (0.8, (1, 1.8, 2.5, 3, 3.4), {"3": 5, "4": 5}),
+            (0.95, (1, 1.8, 2.5, 3, 3.4), {"1": 5, "2": 5}),
+            (0.8, (1, 1.5), {"2": 10}),
+            (0.9, (1, 1.5), {"1": 5, "2": 5}),
+        )
+        for load, speedups, expected in cases:
+            with self.subTest(load=load, speedups=speedups):
+                targets = optimal_allocation_targets(load, speedups)
+                probabilities = optimal_allocation_probabilities(load, speedups)
+                policy = RandomizedPolicy(targets, probabilities, seed=10000)
+                with patch.object(policy.rng, "random", side_effect=[0.3, 0.8] * 5):
+                    result = Simulator(10, policy, speedups=speedups).run(jobs)
+                actual = {key: count for key, count in result["statistics"]["allocations"].items() if count}
+                self.assertEqual(actual, expected)
+                self.assertEqual(result["rejected"], 0)
+
+    def test_generalized_model_is_reproducible_with_or_without_event_history(self):
+        load, speedups = 0.9, (1, 1.5)
+        jobs = WorkloadGenerator(load * 10, seed=7).generate(110)
+        targets = optimal_allocation_targets(load, speedups)
+        probabilities = optimal_allocation_probabilities(load, speedups)
+        policy = RandomizedPolicy(targets, probabilities, seed=10007)
+        simulator = Simulator(10, policy, speedups=speedups)
+        expected = simulator.run(jobs, warmup_arrivals=10)
+        expected.pop("events")
+        for record_events in (True, False):
+            simulator = Simulator(10, policy, speedups=speedups, record_events=record_events)
+            actual = simulator.run(jobs, warmup_arrivals=10)
+            actual.pop("events")
+            self.assertEqual(actual, expected)
 
 
 if __name__ == "__main__":

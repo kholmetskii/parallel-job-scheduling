@@ -145,13 +145,14 @@ Waiting queue & None \\
 \end{center}
 
 Greedy allocation assigns $\min(d,i)$ servers when $i>0$ servers are idle.
-The current randomized policy samples a target of three servers with probability
+For this baseline, the randomized policy samples a target of three servers with probability
 $0.625$, or four with probability $0.375$, and assigns the smaller of that target
 and $i$. Both policies reject an arrival only when $i=0$.
 
-These randomized targets and probabilities are currently fixed for this baseline.
-Calculating them automatically from the model settings is the next implementation
-task. Changing the load or speedup curve requires recalculating them.
+For each randomized experiment, separate helpers calculate the optimal target
+counts and their probabilities from the configured load and speedup curve.
+The main entry point passes this distribution to the allocation policy, which
+samples a target and caps it by idle capacity.
 
 \section{Implementation and validation}
 
@@ -162,13 +163,13 @@ the same time, and all servers allocated to a completed job are released togethe
 
 The implementation separates immutable job inputs, server capacity, simulation control,
 allocation policies, workload generation and statistics. Reusable code is in the
-\texttt{scheduling/} package. A single \texttt{main.py} entry point compares both
-policies on the same seeded arrival times and job sizes. Allocation decisions use
+\texttt{scheduling/} package. A single \texttt{main.py} entry point runs one seeded
+simulation of the randomized policy. Allocation decisions use
 a separate random stream.
 
 Automated checks cover deterministic event traces, server conservation, rejection
 when capacity is exhausted, simultaneous events, measurement cutoffs and seeded
-repeatability. The current implementation passes 92 tests. These checks support
+repeatability. These checks support
 implementation correctness; they do not establish agreement with all of the
 paper's experiments.
 
@@ -195,7 +196,7 @@ A configurable initial number of arrivals is excluded as warm-up. Active jobs
 remain in the system at the cutoff. Measured accepted jobs contribute their full
 execution times, including completions after the last arrival.
 
-The current entry point runs one seeded baseline comparison. Earlier pilot output
+The current entry point runs one seeded randomized-policy simulation. Earlier pilot output
 files were removed during repository cleanup on 8 November; no saved experiment
 results are currently available. Numerical agreement with Figure 2 and Table I
 has not yet been established.

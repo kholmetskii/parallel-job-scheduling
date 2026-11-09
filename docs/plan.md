@@ -1,6 +1,6 @@
 # Plan
 
-Updated: 8 November 2026.
+Updated: 9 November 2026.
 
 ## Goal
 
@@ -55,9 +55,9 @@ The [project workflow](../AGENTS.md) records these rules for future coding sessi
 
 Generalize the single-class allocation rule. The first three tasks are:
 
-- [ ] Find the optimal single target or two neighbouring targets in `scheduling/allocation.py`.
-- [ ] Calculate target probabilities from the model settings.
-- [ ] Pass the calculated targets and probabilities into RandomizedPolicy and check the baseline.
+- [ ] Validate the generalized rule for the paper's three traffic regimes and both speedup curves.
+- [ ] Calculate the optimal mean execution-time benchmark for comparison with simulations.
+- [ ] Write short notes explaining the generalized allocation rule and its assumptions.
 
 ## Reproduction roadmap
 
@@ -81,22 +81,37 @@ Generalize the single-class allocation rule. The first three tasks are:
   has a ServerPool that owns capacity, job execution, and a private
   [CompletionQueue](../scheduling/completion_queue.py). Simulator owns the clock
   and event order. Statistics owns total counts, measurements after warm-up,
-  and allocation counts; experiment helpers read those summaries directly.
+  and allocation counts; main.py reads those summaries directly.
   Warm-up follows arrival order, including when supplied IDs are nonconsecutive.
 - Default model: 100 servers, Poisson arrivals at rate `0.8 * servers`, exponential
   job sizes with mean 1, and speedups `(1, 1.8, 2.5, 3, 3.4)`.
-- `ModelSettings.arrival_rate` derives arrival intensity from normalized load,
-  server count, and mean job size. Both workload creation paths and experiment
-  metadata use this property.
-- Randomized targets remain hardcoded at 3/4 with probabilities 0.625/0.375;
-  calculating them from settings is still pending.
-- ModelSettings and ExperimentSettings validate inputs. Run helpers use the
-  actual model settings and return measurements without writing files.
-- One application entry point: `main.py`. It compares both policies on one
-  shared seeded workload using the first configured seed and prints a summary.
-- Reusable run functions are in `scheduling/experiments.py`; across-run summaries
-  and comparisons are in `scheduling/analysis.py`; checks are in `tests/`.
-- Latest check: 92 automated tests pass, including pool lifecycle operations,
+- main.py derives arrival intensity as `NORMALIZED_LOAD * SERVERS / MEAN_JOB_SIZE`.
+- RandomizedPolicy accepts an explicit target distribution and seed. Each
+  randomized run calculates its targets and probabilities from the configured load and speedups;
+  the policy samples once per arrival, including blocked and single-target cases.
+- [Optimal target selection](../scheduling/allocation.py) now implements Theorem 1
+  as a pure function of load and speedups, including boundary and linear cases.
+  Its baseline result is `(3, 4)`.
+- `optimal_allocation_probabilities()` now calculates the corresponding
+  probabilities from equations (8)-(9) and Section IV, returning approximately
+  `(0.625, 0.375)` for the baseline. It handles single targets and normalizes
+  floating-point results; both allocation helpers now configure randomized runs.
+- main.py holds plain configuration constants: server count, normalized load,
+  mean size, speedups, both seeds and run lengths. ModelSettings and config.py
+  were removed on 9 November. Simulator and ServerPool take server count and
+  speedups explicitly; allocation helpers validate load/curves, ServerPool
+  validates capacity, and WorkloadGenerator validates rate/mean size.
+- One application entry point: `main.py`. It generates a workload, calculates
+  the randomized allocation distribution, runs Simulator directly, and prints
+  blocking probability and mean execution time. Workload seed 0 and policy seed
+  10,000 retain the previous randomized baseline. Event retention is disabled.
+- Comparison execution, across-run analysis, workload fingerprints, and
+  ExperimentSettings were removed on 9 November at the user's request. Repeated
+  experiments and saved evidence are deferred until needed for reproduction.
+- Latest check: 86 automated tests pass, including target selection checked
+  against exact LP vertices for 45 configurations and probability feasibility
+  and optimality checked for 60 configurations, configured weighted sampling,
+  model-driven policy changes, seeded replay, pool lifecycle operations,
   warm-up and allocation counts, independent summary snapshots, and identical
   measurements with event retention disabled.
 - An initial [progress-report draft](reports/report.tex) with the current model and
@@ -223,6 +238,78 @@ The following dates record when later implementation and project work was comple
   both policies with 40 servers, load 0.6, seed 7, 1,000 arrivals and 100 warm-up
   arrivals: doubling mean job size from 1 to 2 halves arrival rate from 24 to 12,
   doubles execution times, and preserves allocations and blocking probability.
+
+- [x] 9 November 2026: Implement `optimal_allocation_targets()` in
+  [allocation.py](../scheduling/allocation.py) using Theorem 1's efficiency
+  thresholds. Return a single target or two neighbours, including linear,
+  light-load, and equality cases; handle division rounding without collapsing
+  loads just below 1 into the excluded unit-load boundary. Add nine tests in
+  [test_allocation.py](../tests/test_allocation.py), including an independent
+  enumeration of all one- and two-target vertices of LP (7) using exact fractions
+  for five curves and nine loads. All 101 tests pass with
+  `.venv/bin/python -B -m unittest discover -s tests -q`;
+  `.venv/bin/python -B main.py` prints the same seeded baseline summary.
+  Probabilities and connection to RandomizedPolicy remain unfinished.
+
+- [x] 9 November 2026: Add `optimal_allocation_probabilities()` alongside target
+  selection in [allocation.py](../scheduling/allocation.py). Use equations
+  (8)-(9) and Section IV's `p_i = s_i * y_i / load`; return probability 1 for a
+  single target and normalize paired weights for rounding. Add seven probability
+  tests in [test_allocation.py](../tests/test_allocation.py), covering the baseline,
+  changed model inputs, both sides of boundaries, loads near 1, and comparison
+  with exact LP minima for five curves and twelve loads (60 configurations).
+  Check nonnegative finite weights, sums of 1, and capacity feasibility.
+  All 108 tests pass with `.venv/bin/python -B -m unittest discover -s tests -q`;
+  `.venv/bin/python -B main.py` prints the same seeded baseline summary.
+  RandomizedPolicy still uses its fixed baseline; connecting these helpers is next.
+
+- [x] 9 November 2026: Make RandomizedPolicy accept explicit targets,
+  probabilities, and a seed; remove its fixed 3/4 branch. Validate and copy the
+  distribution, then sample one target per arrival and cap it by idle capacity.
+  Calculate each randomized experiment's distribution from ModelSettings in
+  `run_policy()`. Update direct constructor calls and add eight tests for generic
+  distributions, single/zero-weight cases, invalid inputs, model changes, and replay.
+  All 116 tests pass with `.venv/bin/python -B -m unittest discover -s tests -q`.
+  Compare complete event traces and experiment summaries with the previous
+  implementation for both policies, seeds 0, 7, and 42, 1,100 arrivals and 100
+  warm-up arrivals: all six cases match exactly. `.venv/bin/python -B main.py`
+  also prints the same seeded baseline summary. Full paper-regime validation
+  and the execution-time benchmark remain pending.
+
+- [x] 9 November 2026: Simplify `scheduling/experiments.py`.
+  Make `run_trial(model, experiment, seed)` generate one workload and compare both
+  policies using the supplied settings. Keep `run_policy()` for supplied jobs;
+  remove its metadata-only workload seed and the manually flattened result schema.
+  Update main.py, analysis and existing tests to consume the simulator's counts
+  and nested Statistics summary. Keep seeds, model settings, workload fingerprints
+  and consistency checks; calculate the fingerprint once per trial and disable
+  event retention by default. All 115 tests pass with
+  `.venv/bin/python -B -m unittest discover -s tests -q`. Twelve seeded runs
+  (both policies, seeds 0/7/42, baseline and a changed model) preserve every
+  count, allocation, metric and metadata value after accounting for the new
+  schema. main.py output is unchanged; across-run analysis accepts trial results.
+  Repeated execution and saved paper-reproduction evidence remain unfinished.
+
+- [x] 9 November 2026: At the user's request, remove the comparison layer and
+  keep one direct simulation in [main.py](../main.py). Remove experiments.py,
+  analysis.py and ExperimentSettings, along with their specific tests. Move four
+  useful model-integration and warm-up checks into the simulator/statistics tests.
+  Keep the core simulator, allocation calculations and both policy classes.
+  All 87 remaining tests pass with `.venv/bin/python -B -m unittest discover -s tests -q`;
+  the direct run preserves every statistic of the previous randomized baseline.
+  Defer repeated-run infrastructure; the next three tasks focus on allocation
+  validation, the mathematical benchmark and explanation notes.
+
+- [x] 9 November 2026: Make [main.py](../main.py) the configuration holder as
+  requested by the user. Replace ModelSettings with plain constants and derive
+  the arrival rate in main(). Remove config.py and move its validation checks
+  to allocation helpers, ServerPool and WorkloadGenerator. Require explicit
+  server count and speedups when constructing the simulator, with no imports
+  from main.py in reusable modules. Move the configuration tests to the
+  relevant component tests. All 86 tests pass with
+  `.venv/bin/python -B -m unittest discover -s tests -q`; the main.py result and
+  printed output are unchanged, and twelve complete seeded traces match the
+  previous implementation exactly.
 
 ## Later: discuss finance feasibility
 
