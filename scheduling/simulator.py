@@ -4,7 +4,7 @@ from typing import Iterable, Literal
 
 from scheduling.job import Job
 from scheduling.logger import Logger
-from scheduling.policies import GreedyPolicy, RandomizedPolicy
+from scheduling.policies import AllocationPolicy, GreedyPolicy
 from scheduling.server_pool import ServerPool
 from scheduling.statistics import Statistics
 
@@ -20,7 +20,7 @@ class Simulator:
     def __init__(
         self,
         servers: int,
-        policy: GreedyPolicy | RandomizedPolicy | None = None,
+        policy: AllocationPolicy | None = None,
         *,
         speedups: tuple[float, ...] | list[float],
         record_events: bool = True,
@@ -75,7 +75,7 @@ class Simulator:
         final arrival, finish all remaining jobs. Each call starts a fresh run.
         Process the first warmup_arrivals normally but exclude them from
         statistics. All event-log entries and top-level counts cover the run.
-        Reset the policy's random stream along with the simulator state.
+        Reset the policy along with the simulator state.
         Callers supply valid jobs with unique IDs; warm-up follows arrival order.
         The returned event log contains immutable Event objects.
         With record_events=False, the log is empty and measurements are unchanged.

@@ -1,4 +1,4 @@
-"""Optimal single-class allocation targets and probabilities from the paper."""
+"""Optimal single-class allocations and execution-time benchmark from the paper."""
 
 import math
 
@@ -60,3 +60,23 @@ def optimal_allocation_probabilities(
     )
     total = math.fsum(probabilities)
     return tuple(probability / total for probability in probabilities)
+
+
+def optimal_mean_execution_time(
+    normalized_load: float,
+    speedups: tuple[float, ...] | list[float],
+    mean_job_size: float,
+) -> float:
+    """Return the LP (7) benchmark in the configured job-size time units.
+
+    With p_i = s_i*y_i/load, its objective is sum(y_i)/load = sum(p_i/s_i)
+    for unit mean size. Multiply by mean_job_size to restore the time scale.
+    This is the asymptotic reference, not an exact finite-system prediction.
+    Configuration is checked once in main.py.
+    """
+    targets = optimal_allocation_targets(normalized_load, speedups)
+    probabilities = optimal_allocation_probabilities(normalized_load, speedups)
+    return mean_job_size * math.fsum(
+        probability / speedups[target - 1]
+        for target, probability in zip(targets, probabilities)
+    )

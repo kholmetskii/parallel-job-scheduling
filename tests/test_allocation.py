@@ -3,7 +3,11 @@ import unittest
 from fractions import Fraction
 from itertools import combinations
 
-from scheduling.allocation import optimal_allocation_probabilities, optimal_allocation_targets
+from scheduling.allocation import (
+    optimal_allocation_probabilities,
+    optimal_allocation_targets,
+    optimal_mean_execution_time,
+)
 
 
 SPEEDUPS = (1, 1.8, 2.5, 3, 3.4)
@@ -186,6 +190,67 @@ class AllocationProbabilitiesTests(unittest.TestCase):
                     )
                     vertices = feasible_vertices(load, exact_curve)
                     self.assertAlmostEqual(duration, float(min(vertices.values())), places=12)
+                    for mean_size in (0.5, 1.0, 2.5):
+                        with self.subTest(mean_size=mean_size):
+                            self.assertAlmostEqual(
+                                optimal_mean_execution_time(float(load), curve, mean_size),
+                                mean_size * float(min(vertices.values())), places=12,
+                            )
+
+    def test_paper_traffic_regimes_and_speedup_curves(self):
+        # Section VII, p. 392. This is our validation grid, not Figure 2's points.
+        regimes = (
+            ("mean-field", 0, 0.2),
+            ("Halfin-Whitt", 1 / 2, 0.1),
+            ("super-Halfin-Whitt", 2 / 3, 0.1),
+        )
+        for curve in ((1, 2, 3, 4, 5), SPEEDUPS):
+            exact_curve = tuple(Fraction(str(value)) for value in curve)
+            for regime, alpha, beta in regimes:
+                for servers in (1, 25, 50, 100, 200, 500, 1000, 4000, 10000):
+                    load = 1 - beta * servers ** (-alpha)
+                    with self.subTest(curve=curve, regime=regime, servers=servers):
+                        targets, probabilities = self.assert_valid_distribution(load, curve)
+                        if curve == (1, 2, 3, 4, 5):
+                            expected_targets = (5,)
+                        elif alpha == 0:
+                            expected_targets = (3, 4)
+                        else:
+                            expected_targets = (2,) if servers == 1 else (1, 2)
+                        self.assertEqual(targets, expected_targets)
+                        duration = math.fsum(
+                            p / curve[target - 1]
+                            for target, p in zip(targets, probabilities)
+                        )
+                        vertices = feasible_vertices(Fraction(str(load)), exact_curve)
+                        self.assertAlmostEqual(duration, float(min(vertices.values())), places=12)
+                        self.assertAlmostEqual(
+                            optimal_mean_execution_time(load, curve, 1.0),
+                            float(min(vertices.values())), places=12,
+                        )
+
+
+class MeanExecutionTimeTests(unittest.TestCase):
+    def test_known_sublinear_baseline(self):
+        self.assertAlmostEqual(optimal_mean_execution_time(0.8, SPEEDUPS, 1.0), 0.375)
+
+    def test_single_target_benchmarks(self):
+        cases = (
+            (0.8, (1,), 1.0),
+            (0.99, (1, 2, 3, 4, 5), 0.2),
+            (0.5, SPEEDUPS, 1 / 3.4),
+            (0.9, SPEEDUPS, 1 / 1.8),
+        )
+        for load, curve, expected in cases:
+            with self.subTest(load=load, curve=curve):
+                self.assertAlmostEqual(optimal_mean_execution_time(load, curve, 1.0), expected)
+
+    def test_mean_size_sets_the_time_scale(self):
+        for mean_size, expected in ((0.25, 0.09375), (2.0, 0.75), (3.5, 1.3125)):
+            with self.subTest(mean_size=mean_size):
+                self.assertAlmostEqual(
+                    optimal_mean_execution_time(0.8, SPEEDUPS, mean_size), expected,
+                )
 
 
 if __name__ == "__main__":

@@ -2,6 +2,24 @@
 
 import math
 import random
+from typing import Protocol
+
+from .allocation import optimal_allocation_probabilities, optimal_allocation_targets
+
+
+class AllocationPolicy(Protocol):
+    """Operations the simulator needs from an allocation policy."""
+
+    def reset(self) -> None:
+        """Prepare the policy for a fresh simulation run."""
+        ...
+
+    def choose_allocation(self, idle_servers: int) -> int:
+        """Return zero if no servers are idle, otherwise a positive allocation.
+
+        The allocation must fit the available capacity and the job's limit.
+        """
+        ...
 
 
 class GreedyPolicy:
@@ -20,8 +38,8 @@ class GreedyPolicy:
 class RandomizedPolicy:
     """Sample a supplied target distribution and cap it by idle capacity.
 
-    The caller supplies a valid target distribution. A target is sampled for
-    every arrival, including blocked jobs and single-target cases.
+    Supply a valid distribution directly or use optimal() with the model settings.
+    A target is sampled for every arrival, including blocked jobs and single-target cases.
     """
 
     def __init__(
@@ -35,6 +53,18 @@ class RandomizedPolicy:
         self.probabilities = tuple(p / total for p in probabilities)
         self.seed = seed
         self.rng = random.Random(seed)
+
+    @classmethod
+    def optimal(
+        cls,
+        normalized_load: float,
+        speedups: tuple[float, ...] | list[float],
+        seed: int | None = None,
+    ) -> "RandomizedPolicy":
+        """Construct the paper's randomized policy from validated model settings."""
+        targets = optimal_allocation_targets(normalized_load, speedups)
+        probabilities = optimal_allocation_probabilities(normalized_load, speedups)
+        return cls(targets, probabilities, seed=seed)
 
     def reset(self) -> None:
         """Restart the policy's random stream for a fresh simulator run."""
