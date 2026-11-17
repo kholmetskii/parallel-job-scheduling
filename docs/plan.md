@@ -1,6 +1,6 @@
 # Plan
 
-Updated: 9 November 2026.
+Updated: 17 November 2026.
 
 ## Goal
 
@@ -53,15 +53,60 @@ The [project workflow](../AGENTS.md) records these rules for future coding sessi
 
 ## Current focus
 
-Generalize the single-class allocation rule. The first three tasks are:
+Build the foundations needed to explain the model and allocation rule. Work
+through one small example at a time, using the existing [model notes](model.md)
+for the connection to the paper:
 
-- [ ] Validate the generalized rule for the paper's three traffic regimes and both speedup curves.
-- [ ] Calculate the optimal mean execution-time benchmark for comparison with simulations.
-- [ ] Write short notes explaining the generalized allocation rule and its assumptions.
+- [ ] Introduce a continuous-time Markov chain through one server with no waiting room. Review Poisson arrivals, exponential execution times and memorylessness as needed. Draw the idle/busy state diagram and label arrival and completion rates; explain why a rate is different from a probability. Suggested first pass: 2-3 hours.
+- [ ] Analyse that one-server loss system with arrival rate 2 and completion rate 3. Solve its stationary balance equations, calculate blocking and accepted throughput, and check Little's law using admitted jobs. Outcome: one worked calculation with units and an explanation of steady state. Suggested first pass: 2-3 hours.
+- [ ] Learn discrete concavity and solve a two-variable allocation LP by hand. Compare marginal gains in linear and concave speedup curves; use speedups (1, 1.5) and load 0.8 to draw the feasible set and minimize the number of jobs per server. Outcome: explain the variables, capacity/throughput constraints and optimum. Suggested first pass: 2-3 hours.
+
+These are learning tasks, not completed mathematical results. Existing code,
+checked notes and assistant explanations do not establish the student's own
+understanding. Keep examples in the existing notes or personal working notes;
+no additional simulator features or document structure are required.
+
+## Learning sequence after the first examples
+
+Use 6-9 hours as an initial budget for the three examples above, split into
+roughly one-hour sessions. Review the pace after the first session; this is a
+first-pass estimate, not a promise of mastery. Within the recorded 8-10-hour
+weekly budget, initially allow about 4-5 hours for this learning, retain 2-3 hours
+for reading/report writing and about one hour for records/supervisor preparation.
+Reassess this allocation as the progress-report deadline approaches.
+
+Then promote the next small tasks into Current focus in this order:
+
+1. Revisit Section II using the learned concepts: job versus server counts,
+   normalization, stationary flow conservation and Little's law. Re-derive
+   equations (3)-(4) and explain the baseline example in the existing
+   [state-accounting notes](model.md#state-variables-normalization-and-steady-state-accounting).
+2. Connect the small LP to Section III and the existing allocation notes:
+   distinguish the optimal occupancy target from arrival allocation probabilities,
+   explain why one or two widths suffice, and recover the baseline probabilities
+   and execution-time benchmark. Separate finite-system observations from the
+   zero-blocking limiting benchmark.
+3. Introduce limits and the relevant convergence notation, then check Theorem 2's
+   assumptions on load and maximum parallelism before its proof. Retain the
+   open scaling question in the [theory notes](theory.md).
+4. Write out the finite-state transition rates and generator used in Section V,
+   learn generator/drift calculations on the small example, then work through
+   the first step of Theorem 2's proof. Introduce differential equations,
+   Lyapunov functions and Stein's method when the argument needs them.
+
+Keep short worked calculations and explanations in the student's own words.
+They support technical understanding and oral explanation; the dated plan and
+report reflection record how a learning gap was identified and addressed. This
+changes the order of work while preserving the full reproduction goal.
+
+Background references (selected by topic, not a requirement to finish a book):
+
+- [Harchol-Balter, Performance Modeling and Design of Computer Systems](https://www.cs.cmu.edu/~harchol/PerformanceModeling/book.html): start with sections 11.1-11.2 and 11.5 for exponential/Poisson basics and 12.1-12.3 for CTMCs; use 6.1-6.2 and 6.7 for Little's law. Later consult 13.3 for why Poisson arrivals see stationary time proportions and 14.2 for the multi-server loss model.
+- [QuantEcon, Linear Programming, sections 45.1-45.2.1](https://intro.quantecon.org/lp_intro.html): objective, constraints and the graphical solution of a two-variable problem. Start with the geometry; numerical solvers and duality can wait.
 
 ## Reproduction roadmap
 
-- [ ] Generalize and validate the single-class allocation rule and benchmark.
+- [x] Generalize and validate the single-class allocation rule and benchmark (9 November 2026).
 - [ ] Check the paper's mathematical results and document their assumptions.
 - [ ] Finish shared experiment execution, settings, saved evidence, and uncertainty analysis.
 - [ ] Reproduce every curve in Figure 2(a) and Figure 2(b).
@@ -72,7 +117,8 @@ Generalize the single-class allocation rule. The first three tasks are:
 ## What we have now
 
 - A tested event-driven [Simulator](../scheduling/simulator.py), with [Job](../scheduling/job.py),
-  [ServerPool](../scheduling/server_pool.py), and [Statistics](../scheduling/statistics.py) in their own modules; two allocation policies.
+  [ServerPool](../scheduling/server_pool.py), and [Statistics](../scheduling/statistics.py) in their own modules.
+  The simulator accepts policies through the two-method `AllocationPolicy` protocol.
 - [Logger](../scheduling/logger.py) creates and stores immutable [Event](../scheduling/event.py)
   snapshots, with attributes such as `event.time` and `event.kind`. Event retention
   can be disabled with `record_events=False` without changing measurements.
@@ -85,10 +131,15 @@ Generalize the single-class allocation rule. The first three tasks are:
   Warm-up follows arrival order, including when supplied IDs are nonconsecutive.
 - Default model: 100 servers, Poisson arrivals at rate `0.8 * servers`, exponential
   job sizes with mean 1, and speedups `(1, 1.8, 2.5, 3, 3.4)`.
-- main.py derives arrival intensity as `NORMALIZED_LOAD * SERVERS / MEAN_JOB_SIZE`.
-- RandomizedPolicy accepts an explicit target distribution and seed. Each
-  randomized run calculates its targets and probabilities from the configured load and speedups;
-  the policy samples once per arrival, including blocked and single-target cases.
+- main.py calculates `load = normalized_load(SERVERS, ALPHA, BETA)` using
+  `1 - beta * servers ** (-alpha)`, then derives arrival intensity as
+  `load * SERVERS / MEAN_JOB_SIZE`. Defaults `ALPHA = 0` and `BETA = 0.2` retain
+  load 0.8. The helper stays in main.py alongside experiment configuration;
+  workload generation and allocation helpers receive numerical values.
+- main.py calls `RandomizedPolicy.optimal(load, SPEEDUPS, seed=POLICY_SEED)`
+  to derive the target distribution. The regular constructor accepts explicit
+  targets and probabilities. The policy samples once per arrival, including
+  blocked and single-target cases.
 - [Optimal target selection](../scheduling/allocation.py) now implements Theorem 1
   as a pure function of load and speedups, including boundary and linear cases.
   Its baseline result is `(3, 4)`.
@@ -96,27 +147,53 @@ Generalize the single-class allocation rule. The first three tasks are:
   probabilities from equations (8)-(9) and Section IV, returning approximately
   `(0.625, 0.375)` for the baseline. It handles single targets and normalizes
   floating-point results; both allocation helpers now configure randomized runs.
-- main.py holds plain configuration constants: server count, normalized load,
-  mean size, speedups, both seeds and run lengths. ModelSettings and config.py
+- `optimal_mean_execution_time(load, speedups, mean_job_size)` calculates
+  the theoretical LP benchmark using the optimal target probabilities. It returns
+  0.375 for the current unit-mean sublinear baseline and 0.2 for linear speedups
+  with maximum allocation 5. main.py prints it beside the simulated mean;
+  [benchmark validation](reproduction.md#execution-time-benchmark-validation-9-november-2026)
+  records independent LP checks and the finite-system interpretation.
+- main.py holds plain configuration constants: server count, traffic parameters
+  ALPHA/BETA, mean size, speedups, both seeds and run lengths. ModelSettings and config.py
   were removed on 9 November. Simulator and ServerPool take server count and
   speedups explicitly. main.py validates configuration once before generating
   jobs; internal components trust those settings and valid generated jobs.
   Runtime guards retain allocation limits, arrival-time ordering and finite
   completion times. Job is a frozen dataclass without per-object validation.
-- One application entry point: `main.py`. It generates a workload, calculates
-  the randomized allocation distribution, runs Simulator directly, and prints
-  blocking probability and mean execution time. Workload seed 0 and policy seed
+- One application entry point: `main.py`. It generates a workload, constructs
+  the randomized policy, runs Simulator directly, and prints
+  blocking probability, mean execution time, and the theoretical benchmark.
+  Workload seed 0 and policy seed
   10,000 retain the previous randomized baseline. Event retention is disabled.
 - Comparison execution, across-run analysis, workload fingerprints, and
   ExperimentSettings were removed on 9 November at the user's request. Repeated
   experiments and saved evidence are deferred until needed for reproduction.
-- Latest check: 77 automated tests pass, including startup configuration checks,
+- Latest check: 82 automated tests pass, including startup configuration checks,
   target selection checked
   against exact LP vertices for 45 configurations and probability feasibility
   and optimality checked for 60 configurations, configured weighted sampling,
   model-driven policy changes, seeded replay, pool lifecycle operations,
   warm-up and allocation counts, independent summary snapshots, and identical
-  measurements with event retention disabled.
+  measurements with event retention disabled. The paper's three traffic regimes
+  and both speedup curves also pass feasibility and independent LP optimality
+  checks at nine server counts (54 combinations); see the
+  [allocation validation evidence](reproduction.md#allocation-validation-9-november-2026).
+  The benchmark also agrees with independent LP minima for 60 model cases
+  at three mean sizes (180 combinations), plus the 54 paper-regime cases.
+- Checked [allocation-rule notes](model.md#optimal-allocation-calculations), completed
+  9 November: LP structure, a supporting-line proof for neighbouring targets,
+  state-to-probability conversion, mean-size scaling, and finite-system limits.
+  These notes now use local definitions, lemmas, propositions, a theorem, and
+  corollaries with proofs; their labels are distinct from the paper's numbering.
+  Under weak concavity the selected optimum need not be unique; an exact
+  boundary counterexample is recorded as a question about Theorem 1(ii).
+  The [Proposition 1 review](reproduction.md#proposition-1-check-10-november-2026)
+  checks Appendix A for fixed maximum parallelism and records a scaling issue
+  for growing parallelism. Theorem 2 and its stochastic convergence proof remain open.
+  The Obsidian version is saved in [theory.md](theory.md), created
+  9 November 2026, with sections numbered from 1, typed blocks, statements and proofs.
+  Preview formatting repaired 9 November: separate display equations with blank
+  lines and use LaTeX comparison commands to prevent raw HTML interpretation.
 - An initial [progress-report draft](reports/report.tex) with the current model and
   implementation, a paper reference, and visible notes for unfinished sections.
 
@@ -324,6 +401,100 @@ The following dates record when later implementation and project work was comple
   tests for the retired internal validation contracts. All 77 tests pass with
   `.venv/bin/python -B -m unittest discover -s tests -q`; twelve complete seeded
   traces and main.py's result/output match the previous implementation exactly.
+
+- [x] 9 November 2026: Validate all six Section VII traffic-regime/speedup
+  combinations at nine server counts, including Table I's 4,000 servers.
+  The new regression test checks expected targets, valid probabilities, capacity
+  feasibility, and optimality against exact LP vertex enumeration. All 78 tests
+  pass. Record the source settings, chosen validation grid, computed allocations,
+  and limits of this check in the [reproduction checklist](reproduction.md#allocation-validation-9-november-2026).
+  Production code and main.py configuration are unchanged; published simulation
+  results have not yet been reproduced.
+
+- [x] 9 November 2026: Add the pure `normalized_load(servers, alpha, beta)`
+  function in main.py, as agreed with the user. Replace the fixed normalized-load
+  setting with ALPHA/BETA constants; startup validation returns the derived load
+  for main.py's arrival rate and allocation calculations. Keep all checks at the
+  entry point. Known values cover all three paper regimes and changing server
+  counts; an integration test verifies that arrivals and both allocation helpers
+  use the updated load. All 79 tests pass, and main.py's complete default output
+  matches the preceding implementation exactly. Benchmark and proof tasks remain open.
+
+- [x] 9 November 2026: Add `optimal_mean_execution_time()` in allocation.py
+  and print the theoretical reference beside main.py's measured mean. Use
+  `mean_job_size * sum(p_i / s_i)` with the model's optimal distribution, without
+  changing allocation, workload generation, random sampling, or runtime validation.
+  Check the known 0.375 baseline, linear/single-target cases, mean-size scaling,
+  and 234 benchmark combinations against independent exact LP minima. Update
+  the main integration test to verify the configured load/mean and printed
+  benchmark. All 82 tests pass. The complete previous default output is preserved,
+  followed by the new benchmark line; simulated blocking remains 0.119190 and mean
+  execution time 0.395893, with benchmark 0.375000. Document the derivation and
+  finite-system limits in model.md and the validation evidence in reproduction.md.
+
+- [x] 9 November 2026: Complete the [allocation-rule explanation](model.md#optimal-allocation-calculations)
+  against Section III, Theorem 1, equations (7)-(10), Section IV, and Appendix B.
+  Explain why a vertex uses at most two targets and concavity permits neighbours;
+  prove optimality with a supporting-line bound. Derive state components,
+  arrival probabilities, and the mean-size-scaled benchmark, including boundaries,
+  linear speedups, and the strict load/input assumptions. Check the baseline,
+  supporting-line inequality, and a weak-concavity nonuniqueness example using
+  exact rational arithmetic; all 82 existing tests pass. Record the apparent
+  Theorem 1(ii) uniqueness issue for clarification with Arpan. This completes the
+  allocation notes, not Proposition 1 or the stochastic asymptotic proof.
+
+- [x] 9 November 2026: Reorganize the allocation explanation into formal
+  statements and proofs at the user's request. Define the LP, prove efficiency
+  ordering and feasibility, prove the existence of a two-component optimizer
+  by a support-reducing perturbation, and derive the supporting-line bound.
+  State and prove the target-selection theorem, a sufficient uniqueness
+  condition, the probability conversion, and the execution-time/linear-speedup
+  corollaries. Retain both counterexamples with exact objective comparisons.
+  Exact arithmetic matches independent LP minima in 99 load/curve cases and
+  verifies both counterexamples. Local A-labels distinguish these notes from
+  the paper's theorem numbering.
+  Proposition 1 and stochastic convergence remain the next mathematical work.
+
+- [x] 10 November 2026: Add `RandomizedPolicy.optimal()` to construct the
+  paper's policy from load and speedups. Keep allocation calculations in
+  allocation.py and the direct constructor for custom distributions. The
+  [main integration test](../tests/test_main.py) checks the derived policy at
+  a changed load. All 82 tests pass and the default seeded output is identical.
+
+- [x] 10 November 2026: Define the [AllocationPolicy protocol](../scheduling/policies.py)
+  and use it in Simulator. Greedy and randomized policies already implement its
+  `reset()` and `choose_allocation()` methods. All 82 tests pass and the default
+  seeded output is identical.
+
+- [x] 10 November 2026: Move the allocation helpers and theoretical benchmark
+  into policies.py as module-level functions. All 82 tests passed and the
+  default seeded output matched exactly.
+- [x] 10 November 2026: Reverse the module merge at the user's request. Restore
+  [allocation.py](../scheduling/allocation.py) for the theoretical calculations
+  and the original imports. Keep `RandomizedPolicy.optimal()` and the policy
+  protocol. All 82 tests pass and the default seeded output still matches exactly.
+
+- [x] 10 November 2026: Separate startup validation from load calculation in
+  main(). `validate_configuration()` checks the settings and derived values;
+  main() then explicitly calculates the load it uses. The [configuration tests](../tests/test_main.py)
+  still cover valid loads and rejection of invalid settings. All 82 tests pass
+  and the default seeded output is identical.
+
+- [x] 10 November 2026: Check Proposition 1 and Appendix A against the paper.
+  Derive the sufficient condition for bounded maximum parallelism and positive
+  limiting load, and give an exact two-state counterexample to the unqualified
+  implication with growing parallelism. Document the assumptions and checks in
+  [the theory notes](theory.md) and [reproduction checklist](reproduction.md#proposition-1-check-10-november-2026).
+  Clarification with Arpan and review of Theorem 2 remain open.
+
+- [x] 17 November 2026: Add the [Section II accounting explanation](model.md#state-variables-normalization-and-steady-state-accounting), checked against printed pp. 385-387 and equations (3)-(7). Explain arrival/state normalization, job versus server counts, stationary rate conservation, and Little's law for accepted jobs. Verify the ideal baseline target and benchmark using exact arithmetic; distinguish it from finite-system measurements. This records the explanation, not assessed student understanding or a proof of Theorem 2. No simulation code changed.
+
+- [x] 17 November 2026: Reorder the learning plan after the student reported no
+  experience with CTMCs, queueing/loss systems, LP or concavity. Add three small
+  foundation examples, an adjustable first-pass time budget and a route back to
+  Sections II-III before Theorem 2 and generators. Preserve the existing checked
+  results and distinguish them from personal understanding. The learning tasks
+  remain open; full reproduction and report writing remain in scope.
 
 ## Later: discuss finance feasibility
 
